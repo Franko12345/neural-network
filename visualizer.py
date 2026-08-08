@@ -5,6 +5,7 @@ calls update() each frame.
 """
 import numpy as np
 import pygame
+import pygame.gfxdraw
 
 
 # --- layout constants -------------------------------------------------------
@@ -17,24 +18,45 @@ PANEL_H = HEIGHT - TOP_BAR_H
 BG_COLOR = (15, 15, 20)
 BAR_COLOR = (25, 25, 32)
 TEXT_COLOR = (220, 220, 220)
-NODE_OUTLINE = (0, 0, 0)
+NODE_OUTLINE = (45, 50, 65)  # dark slate — pairs with bg (15,15,20) without pure black
 CONN_NEG = (60, 120, 255)
 CONN_POS = (255, 80, 80)
 CLASS_COLORS = [(40, 200, 180), (255, 150, 50), (220, 60, 200)]
 
 GRID_RES = 40
 NODE_RADIUS = 18
-NODE_OUTLINE_W = 2
+NODE_OUTLINE_W = 6
+NODE_END_INSET = 0.12  # input/output layers inset this fraction from panel edge
 
 
 def _calc_x(layer_idx: int, n_layers: int, pos_x: int, width: int) -> int:
-    return pos_x + layer_idx * width // max(n_layers - 1, 1)
+    # Input/output pinned at panel edges (inset by NODE_END_INSET); hidden layers
+    # centered between them at equal intervals.
+    inset = int(width * NODE_END_INSET)
+    if n_layers <= 1:
+        return pos_x + width // 2
+    if layer_idx == 0:
+        return pos_x + inset
+    if layer_idx == n_layers - 1:
+        return pos_x + width - inset
+    # n_hidden layers distributed across (n_hidden + 1) equal intervals
+    # between input and output, so they always sit centered.
+    n_hidden = n_layers - 2
+    span = width - 2 * inset
+    return pos_x + inset + (layer_idx * span) // (n_hidden + 1)
 
 
-def _calc_y(node_idx: int, n_nodes: int, pos_y: int, height: int) -> int:
-    if n_nodes == 1:
+def _calc_y(node_idx: int, n_nodes: int, n_total: int, pos_y: int, height: int) -> int:
+    """Vertical layout: nodes grow from the center outward as the layer widens.
+    The tallest layer sets the box height; shorter layers stay centered."""
+    if n_total <= 1 or n_nodes == 1:
         return pos_y + height // 2
-    return pos_y + node_idx * height // (n_nodes - 1)
+    # Spacing dictated by the tallest layer (n_total); this layer's nodes sit
+    # at the same dy as if it were the tallest, then center the column.
+    dy = height // max(n_total - 1, 1)
+    used = (n_nodes - 1) * dy
+    top = pos_y + (height - used) // 2
+    return top + node_idx * dy
 
 
 def _connection_thickness(weight: float) -> int:
@@ -110,22 +132,23 @@ class Visualizer:
         size_h = PANEL_H - 40
         layers: list[dict] = nn.layers
         n_layers = len(layers) + 1
+        # Tallest layer dictates the vertical box; shorter layers stay centered.
+        n_total = max(nn.input_cache.shape[1], max(layer["W"].shape[1] for layer in layers))
 
         for i, layer in enumerate(layers):
             fan_in, fan_out = layer["W"].shape
             x_in = _calc_x(i, n_layers, pos_x, size_w)
             x_out = _calc_x(i + 1, n_layers, pos_x, size_w)
             for k in range(fan_in):
-                y_in = _calc_y(k, fan_in, pos_y, size_h)
+                y_in = _calc_y(k, fan_in, n_total, pos_y, size_h)
                 for j in range(fan_out):
-                    y_out = _calc_y(j, fan_out, pos_y, size_h)
+                    y_out = _calc_y(j, fan_out, n_total, pos_y, size_h)
                     w = layer["W"][k, j]
                     color = CONN_POS if w > 0 else CONN_NEG
-                    pygame.draw.line(
-                        self.screen, color,
-                        (x_in, y_in), (x_out, y_out),
-                        _connection_thickness(w),
-                    )
+                    thick = _connection_thickness(w)
+                    pygame.draw.line(self.screen, color, (x_in, y_in), (x_out, y_out), thick)
+                    # AA blend on top so the edges aren't stair-stepped.
+                    pygame.draw.aaline(self.screen, color, (x_in, y_in), (x_out, y_out))
 
         for i in range(n_layers):
             if i == 0:
@@ -135,10 +158,17 @@ class Visualizer:
             n_nodes = values.shape[0]
             for j in range(n_nodes):
                 x = _calc_x(i, n_layers, pos_x, size_w)
-                y = _calc_y(j, n_nodes, pos_y, size_h)
+                y = _calc_y(j, n_nodes, n_total, pos_y, size_h)
                 gray = int(np.clip(values[j] * 255, 0, 255))
-                pygame.draw.circle(self.screen, (gray, gray, gray), (x, y), NODE_RADIUS)
+                fill = (gray, gray, gray)
+                # Outline first (behind fill), full radius, so the fill covers
+                # the inner half of the border and only the outer half shows.
                 pygame.draw.circle(self.screen, NODE_OUTLINE, (x, y), NODE_RADIUS, NODE_OUTLINE_W)
+                inner = NODE_RADIUS - NODE_OUTLINE_W // 2
+                pygame.gfxdraw.filled_circle(self.screen, x, y, inner, fill)
+                pygame.gfxdraw.aacircle(self.screen, x, y, inner, fill)
+                # Outer AA halo on the border.
+                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, NODE_OUTLINE)
 
 
 # --- standalone demo: run on hardcoded XOR ---------------------------------
