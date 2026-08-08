@@ -3,29 +3,22 @@
 ponytail: fixed-shape outputs (n, 2) and (n,). No train/test split —
 visualizer trains on the full set.
 """
-from __future__ import annotations
-
 import numpy as np
 
 
 def _normalize(X: np.ndarray) -> np.ndarray:
     """Per-axis min-max to [-1, 1]."""
     lo, hi = X.min(axis=0), X.max(axis=0)
-    span = np.where(hi - lo == 0, 1.0, hi - lo)
+    span = np.maximum(hi - lo, 1e-12)
     return 2.0 * (X - lo) / span - 1.0
-
-
-def _noise(rng: np.random.Generator, n: int, sigma: float) -> np.ndarray:
-    return rng.normal(0.0, sigma, (n, 2))
 
 
 def xor(n: int = 200, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
-    half = n // 2
     # Class 0: (0,0) and (1,1) quadrants. Class 1: (0,1) and (1,0).
     X = rng.uniform(-1, 1, (n, 2))
     y = ((X[:, 0] * X[:, 1]) > 0).astype(int)
-    X += _noise(rng, n, 0.1)
+    X += rng.normal(0.0, 0.1, (n, 2))
     return _normalize(X), y
 
 
@@ -37,7 +30,7 @@ def circle(n: int = 200, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
     angles1 = rng.uniform(0, 2 * np.pi, n - half)
     inner = np.column_stack([np.cos(angles0) * 0.3, np.sin(angles0) * 0.3])
     outer = np.column_stack([np.cos(angles1) * 0.8, np.sin(angles1) * 0.8])
-    X = np.vstack([inner, outer]) + _noise(rng, n, 0.1)
+    X = np.vstack([inner, outer]) + rng.normal(0.0, 0.1, (n, 2))
     y = np.array([0] * half + [1] * (n - half))
     return _normalize(X), y
 
@@ -51,7 +44,7 @@ def spiral(n: int = 200, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
     counts = [n_per, n_per, n_per + remainder]
     Xs, ys = [], []
     for cls, count in enumerate(counts):
-        # Each class is a half-turn of a spiral starting at cls * 2π/3.
+        # Each class is a full revolution (t in [0, 2π]) starting at cls * 2π/3.
         t = rng.uniform(0, 2 * np.pi, count)
         r = 0.4 + t / (2 * np.pi) * 0.5  # radius 0.4 -> 0.9
         offset = cls * 2 * np.pi / 3
@@ -59,7 +52,7 @@ def spiral(n: int = 200, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
         y = r * np.sin(t + offset)
         Xs.append(np.column_stack([x, y]))
         ys.append(np.full(count, cls))
-    X = np.vstack(Xs) + _noise(rng, n, 0.05)
+    X = np.vstack(Xs) + rng.normal(0.0, 0.05, (n, 2))
     y = np.concatenate(ys)
     return _normalize(X), y
 
