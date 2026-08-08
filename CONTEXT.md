@@ -84,9 +84,27 @@ neural-network/
 **Pre-implementation.** `nn.py` exists as a draft awaiting cleanup.
 No datasets, tests, visualizer, or main loop yet.
 
+## Roadmap
+
+| Version | Status | Spec | Scope |
+|---|---|---|---|
+| **v1 — nn-visualizer** | `ready-for-agent` | `.scratch/nn-visualizer/README.md` | Toy datasets (XOR/circle/spiral) + backprop + pygame viz. ~600 LOC. |
+| **v2 — nn-v2-future** | `draft` (blocked on v1) | `.scratch/nn-v2-future/README.md` | MountainCar-v0 + REINFORCE + decoder-only transformer from scratch. Adds gymnasium as only new dep. |
+| **v3 — diffusion** | not specced | — | 3Blue1Brown cap. 10. Placeholder; spec when v2 ships. |
+
+## Versions must sequence
+
+- **v1 first**: validates backprop primitives, softmax+CE gradient,
+  visualizer framework. All reused by v2.
+- **v2 depends on v1's `nn.py` and `visualizer.py`** — the
+  transformer block's MLP reuses `NeuralNetwork.forward/backward`.
+- v3 (when specced) will depend on v2's transformer modules.
+
 ## Related skills (in `~/.hermes/skills/`)
 
 - `neural-networks-foundation` — conceptual reference for the math.
 - `research-then-code-then-visualize` — workflow we used to plan this.
 - `setup-matt-pocock-skills` (already applied) — generated this
   repo's `docs/agents/` config.
+- `neural-networks-foundation` chapters 5-8 will be loaded when
+  v2 starts (transformer math).
