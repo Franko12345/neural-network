@@ -84,6 +84,7 @@ class Visualizer:
         acc: float,
         dataset_name: str,
     ) -> None:
+        self._last_nn = nn
         self.screen.fill(BG_COLOR)
         self._draw_top_bar(epoch, loss, acc, dataset_name)
         self._draw_decision_boundary(nn, X, y_int)
@@ -169,6 +170,32 @@ class Visualizer:
                 pygame.gfxdraw.aacircle(self.screen, x, y, inner, fill)
                 # Outer AA halo on the border.
                 pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, NODE_OUTLINE)
+
+    def hit_test_input_node(self, mx: int, my: int) -> int | None:
+        """Return the index of the input node clicked at (mx, my), or None.
+
+        Uses the same layout math as _draw_weight_graph so clicks land on
+        the visible circles even when the input layer has fewer nodes than
+        the tallest layer (those nodes stay centered)."""
+        # Need a network in scope to know n_nodes for the input layer.
+        # Caller must have called update() at least once.
+        if not hasattr(self, "_last_nn") or self._last_nn is None:
+            return None
+        nn = self._last_nn
+        layers: list[dict] = nn.layers
+        pos_x = PANEL_W + 40
+        pos_y = TOP_BAR_H + 20
+        size_w = PANEL_W - 80
+        size_h = PANEL_H - 40
+        n_layers = len(layers) + 1
+        n_nodes = nn.input_cache.shape[1]
+        n_total = max(nn.input_cache.shape[1], max(layer["W"].shape[1] for layer in layers))
+        x = _calc_x(0, n_layers, pos_x, size_w)
+        for j in range(n_nodes):
+            y = _calc_y(j, n_nodes, n_total, pos_y, size_h)
+            if (mx - x) ** 2 + (my - y) ** 2 <= NODE_RADIUS ** 2:
+                return j
+        return None
 
 
 # --- standalone demo: run on hardcoded XOR ---------------------------------
