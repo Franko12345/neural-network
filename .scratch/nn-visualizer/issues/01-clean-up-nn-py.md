@@ -32,6 +32,8 @@ sanity script that exits 0 in under 2 seconds on the headless LXC.
       under 2 seconds.
 - [ ] The draft's redundant `inp = ...` lines (from the earlier
       rewrite) are removed; the file reads top-to-bottom in under
-      100 lines.
+      130 lines (revised from "under 100" — activation helpers
+      `_activate`+`_activate_deriv` are necessary for clarity per
+      Matt Pocock review of PR #1).
 - [ ] A `ponytail:` comment names the full-batch SGD ceiling and
       points to minibatch as the upgrade path.
