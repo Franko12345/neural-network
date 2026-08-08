@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Pygame
+last_frame.png
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Venvs
+.venv/
+venv/
+env/
