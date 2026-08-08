@@ -5,6 +5,7 @@ calls update() each frame.
 """
 import numpy as np
 import pygame
+import pygame.gfxdraw
 
 
 # --- layout constants -------------------------------------------------------
@@ -82,26 +83,24 @@ class Visualizer:
         grid = np.array(np.meshgrid(xs, ys)).T.reshape(-1, 2)
         preds = nn.forward(grid).argmax(axis=1)
 
-        cell_w = PANEL_W / GRID_RES
-        cell_h = PANEL_H / GRID_RES
+        # Render the grid into a small surface, then smoothscale up for AA edges.
+        grid_w = GRID_RES * 2
+        grid_h = GRID_RES * 2
+        grid_surf = pygame.Surface((grid_w, grid_h))
         for i, cls in enumerate(preds):
             gx = i % GRID_RES
             gy = i // GRID_RES
             color = CLASS_COLORS[cls % len(CLASS_COLORS)]
-            rect = pygame.Rect(
-                int(gx * cell_w),
-                TOP_BAR_H + int(gy * cell_h),
-                int(cell_w) + 1,
-                int(cell_h) + 1,
-            )
-            pygame.draw.rect(self.screen, color, rect)
+            grid_surf.fill(color, (gx * 2, gy * 2, 2, 2))
+        scaled = pygame.transform.smoothscale(grid_surf, (PANEL_W, PANEL_H))
+        self.screen.blit(scaled, (0, TOP_BAR_H))
 
         for pt, cls in zip(X, y_int):
             px = int((pt[0] - x_lo) / (x_hi - x_lo) * PANEL_W)
             py = TOP_BAR_H + int((pt[1] - y_lo) / (y_hi - y_lo) * PANEL_H)
             color = CLASS_COLORS[int(cls) % len(CLASS_COLORS)]
-            pygame.draw.circle(self.screen, color, (px, py), 4)
-            pygame.draw.circle(self.screen, (0, 0, 0), (px, py), 4, 1)
+            pygame.gfxdraw.aacircle(self.screen, px, py, 4, color)
+            pygame.gfxdraw.filled_circle(self.screen, px, py, 4, color)
 
     def _draw_weight_graph(self, nn) -> None:
         pos_x = PANEL_W + 40
@@ -121,11 +120,10 @@ class Visualizer:
                     y_out = _calc_y(j, fan_out, pos_y, size_h)
                     w = layer["W"][k, j]
                     color = CONN_POS if w > 0 else CONN_NEG
-                    pygame.draw.line(
-                        self.screen, color,
-                        (x_in, y_in), (x_out, y_out),
-                        _connection_thickness(w),
-                    )
+                    thick = _connection_thickness(w)
+                    pygame.draw.line(self.screen, color, (x_in, y_in), (x_out, y_out), thick)
+                    # AA blend on top so the edges aren't stair-stepped.
+                    pygame.draw.aaline(self.screen, color, (x_in, y_in), (x_out, y_out))
 
         for i in range(n_layers):
             if i == 0:
@@ -137,8 +135,10 @@ class Visualizer:
                 x = _calc_x(i, n_layers, pos_x, size_w)
                 y = _calc_y(j, n_nodes, pos_y, size_h)
                 gray = int(np.clip(values[j] * 255, 0, 255))
-                pygame.draw.circle(self.screen, (gray, gray, gray), (x, y), NODE_RADIUS)
-                pygame.draw.circle(self.screen, NODE_OUTLINE, (x, y), NODE_RADIUS, NODE_OUTLINE_W)
+                fill = (gray, gray, gray)
+                pygame.gfxdraw.filled_circle(self.screen, x, y, NODE_RADIUS, fill)
+                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, fill)
+                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, NODE_OUTLINE)
 
 
 # --- standalone demo: run on hardcoded XOR ---------------------------------
