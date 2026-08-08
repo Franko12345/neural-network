@@ -25,17 +25,36 @@ CLASS_COLORS = [(40, 200, 180), (255, 150, 50), (220, 60, 200)]
 
 GRID_RES = 40
 NODE_RADIUS = 18
-NODE_OUTLINE_W = 2
+NODE_OUTLINE_W = 4
+NODE_END_INSET = 0.12  # input/output layers inset this fraction from panel edge
 
 
 def _calc_x(layer_idx: int, n_layers: int, pos_x: int, width: int) -> int:
-    return pos_x + layer_idx * width // max(n_layers - 1, 1)
+    # Input/output pinned at panel edges (inset by NODE_END_INSET); hidden layers
+    # distributed across the middle.
+    usable = width - 2 * int(width * NODE_END_INSET)
+    if n_layers <= 1:
+        return pos_x + width // 2
+    if layer_idx == 0:
+        return pos_x + int(width * NODE_END_INSET)
+    if layer_idx == n_layers - 1:
+        return pos_x + width - int(width * NODE_END_INSET)
+    middle_idx = layer_idx - 1
+    middle_total = n_layers - 2
+    return pos_x + int(width * NODE_END_INSET) + middle_idx * usable // (middle_total + 1)
 
 
-def _calc_y(node_idx: int, n_nodes: int, pos_y: int, height: int) -> int:
-    if n_nodes == 1:
+def _calc_y(node_idx: int, n_nodes: int, n_total: int, pos_y: int, height: int) -> int:
+    """Vertical layout: nodes grow from the center outward as the layer widens.
+    The tallest layer sets the box height; shorter layers stay centered."""
+    if n_total <= 1 or n_nodes == 1:
         return pos_y + height // 2
-    return pos_y + node_idx * height // (n_nodes - 1)
+    # Spacing dictated by the tallest layer (n_total); this layer's nodes sit
+    # at the same dy as if it were the tallest, then center the column.
+    dy = height // max(n_total - 1, 1)
+    used = (n_nodes - 1) * dy
+    top = pos_y + (height - used) // 2
+    return top + node_idx * dy
 
 
 def _connection_thickness(weight: float) -> int:
@@ -111,15 +130,17 @@ class Visualizer:
         size_h = PANEL_H - 40
         layers: list[dict] = nn.layers
         n_layers = len(layers) + 1
+        # Tallest layer dictates the vertical box; shorter layers stay centered.
+        n_total = max(nn.input_cache.shape[1], max(layer["W"].shape[1] for layer in layers))
 
         for i, layer in enumerate(layers):
             fan_in, fan_out = layer["W"].shape
             x_in = _calc_x(i, n_layers, pos_x, size_w)
             x_out = _calc_x(i + 1, n_layers, pos_x, size_w)
             for k in range(fan_in):
-                y_in = _calc_y(k, fan_in, pos_y, size_h)
+                y_in = _calc_y(k, fan_in, n_total, pos_y, size_h)
                 for j in range(fan_out):
-                    y_out = _calc_y(j, fan_out, pos_y, size_h)
+                    y_out = _calc_y(j, fan_out, n_total, pos_y, size_h)
                     w = layer["W"][k, j]
                     color = CONN_POS if w > 0 else CONN_NEG
                     thick = _connection_thickness(w)
@@ -135,12 +156,15 @@ class Visualizer:
             n_nodes = values.shape[0]
             for j in range(n_nodes):
                 x = _calc_x(i, n_layers, pos_x, size_w)
-                y = _calc_y(j, n_nodes, pos_y, size_h)
+                y = _calc_y(j, n_nodes, n_total, pos_y, size_h)
                 gray = int(np.clip(values[j] * 255, 0, 255))
                 fill = (gray, gray, gray)
                 pygame.gfxdraw.filled_circle(self.screen, x, y, NODE_RADIUS, fill)
                 pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, fill)
-                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, NODE_OUTLINE)
+                # Outline: thick + AA blend (draw.circle is stair-stepped but
+                # accepts width; gfxdraw.aacircle overdraws a 1px AA halo on top).
+                pygame.draw.circle(self.screen, NODE_OUTLINE, (x, y), NODE_RADIUS, NODE_OUTLINE_W)
+                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS + NODE_OUTLINE_W // 2, NODE_OUTLINE)
 
 
 # --- standalone demo: run on hardcoded XOR ---------------------------------
