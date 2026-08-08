@@ -31,17 +31,19 @@ NODE_END_INSET = 0.12  # input/output layers inset this fraction from panel edge
 
 def _calc_x(layer_idx: int, n_layers: int, pos_x: int, width: int) -> int:
     # Input/output pinned at panel edges (inset by NODE_END_INSET); hidden layers
-    # distributed across the middle.
-    usable = width - 2 * int(width * NODE_END_INSET)
+    # centered between them at equal intervals.
+    inset = int(width * NODE_END_INSET)
     if n_layers <= 1:
         return pos_x + width // 2
     if layer_idx == 0:
-        return pos_x + int(width * NODE_END_INSET)
+        return pos_x + inset
     if layer_idx == n_layers - 1:
-        return pos_x + width - int(width * NODE_END_INSET)
-    middle_idx = layer_idx - 1
-    middle_total = n_layers - 2
-    return pos_x + int(width * NODE_END_INSET) + middle_idx * usable // (middle_total + 1)
+        return pos_x + width - inset
+    # n_hidden layers distributed across (n_hidden + 1) equal intervals
+    # between input and output, so they always sit centered.
+    n_hidden = n_layers - 2
+    span = width - 2 * inset
+    return pos_x + inset + (layer_idx * span) // (n_hidden + 1)
 
 
 def _calc_y(node_idx: int, n_nodes: int, n_total: int, pos_y: int, height: int) -> int:
