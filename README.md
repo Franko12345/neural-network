@@ -20,6 +20,16 @@ The visualizer shows two panels side-by-side:
   (white = full, black = zero), connections are lines **blue for
   negative weight, red for positive**, thickness by |weight|.
 
+Live training, three datasets of escalating difficulty:
+
+| XOR | Circle | Spiral |
+| :-: | :-: | :-: |
+| ![](.scratch/screenshots/xor.gif) | ![](.scratch/screenshots/circle.gif) | ![](.scratch/screenshots/spiral.gif) |
+
+Each GIF is 60 frames at 20fps (3s loop). Watch the decision boundary
+on the left deform as the loss falls, and the weight graph on the
+right shift colors.
+
 ## Quick start
 
 ```bash
