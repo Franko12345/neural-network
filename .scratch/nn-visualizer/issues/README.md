@@ -17,12 +17,12 @@ viz / main / docs.
 
 | # | Title | Blocked by | Status |
 |---|---|---|---|
-| [01](./01-clean-up-nn-py.md) | Clean up `nn.py` to match spec | None | ready-for-agent |
-| [02](./02-dataset-generators.md) | Dataset generators (XOR / circle / spiral) | 01 | ready-for-agent |
-| [03](./03-headless-tests.md) | Headless tests for the single seam | 01, 02 | ready-for-agent |
-| [04](./04-pygame-visualizer.md) | Pygame visualizer (boundary + weight graph) | 01 | ready-for-agent |
-| [05](./05-main-loop.md) | Main loop with controls (keys + click) | 02, 04 | ready-for-agent |
-| [06](./06-headless-smoke-and-readme.md) | Headless smoke test + README | 03, 05 | ready-for-agent |
+| [01](./01-clean-up-nn-py.md) | Clean up `nn.py` to match spec | None | implemented |
+| [02](./02-dataset-generators.md) | Dataset generators (XOR / circle / spiral) | 01 | implemented |
+| [03](./03-headless-tests.md) | Headless tests for the single seam | 01, 02 | implemented |
+| [04](./04-pygame-visualizer.md) | Pygame visualizer (boundary + weight graph) | 01 | implemented |
+| [05](./05-main-loop.md) | Main loop with controls (keys + click) | 02, 04 | implemented |
+| [06](./06-headless-smoke-and-readme.md) | Headless smoke test + README | 03, 05 | implemented |
 
 ## Frontier (parallelizable)
 
