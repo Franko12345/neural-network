@@ -83,24 +83,26 @@ class Visualizer:
         grid = np.array(np.meshgrid(xs, ys)).T.reshape(-1, 2)
         preds = nn.forward(grid).argmax(axis=1)
 
-        # Render the grid into a small surface, then smoothscale up for AA edges.
-        grid_w = GRID_RES * 2
-        grid_h = GRID_RES * 2
-        grid_surf = pygame.Surface((grid_w, grid_h))
+        cell_w = PANEL_W / GRID_RES
+        cell_h = PANEL_H / GRID_RES
         for i, cls in enumerate(preds):
             gx = i % GRID_RES
             gy = i // GRID_RES
             color = CLASS_COLORS[cls % len(CLASS_COLORS)]
-            grid_surf.fill(color, (gx * 2, gy * 2, 2, 2))
-        scaled = pygame.transform.smoothscale(grid_surf, (PANEL_W, PANEL_H))
-        self.screen.blit(scaled, (0, TOP_BAR_H))
+            rect = pygame.Rect(
+                int(gx * cell_w),
+                TOP_BAR_H + int(gy * cell_h),
+                int(cell_w) + 1,
+                int(cell_h) + 1,
+            )
+            pygame.draw.rect(self.screen, color, rect)
 
         for pt, cls in zip(X, y_int):
             px = int((pt[0] - x_lo) / (x_hi - x_lo) * PANEL_W)
             py = TOP_BAR_H + int((pt[1] - y_lo) / (y_hi - y_lo) * PANEL_H)
             color = CLASS_COLORS[int(cls) % len(CLASS_COLORS)]
-            pygame.gfxdraw.aacircle(self.screen, px, py, 4, color)
-            pygame.gfxdraw.filled_circle(self.screen, px, py, 4, color)
+            pygame.draw.circle(self.screen, color, (px, py), 4)
+            pygame.draw.circle(self.screen, (0, 0, 0), (px, py), 4, 1)
 
     def _draw_weight_graph(self, nn) -> None:
         pos_x = PANEL_W + 40
