@@ -81,8 +81,20 @@ neural-network/
 
 ## Status
 
-**Pre-implementation.** `nn.py` exists as a draft awaiting cleanup.
-No datasets, tests, visualizer, or main loop yet.
+**Shipped (v1).** `nn.py`, `datasets.py`, `tests/test_nn.py`,
+`visualizer.py`, and `main.py` are merged on `main`. Headless tests
+pass in ~3.6s. Visualizer runs at 60fps on a desktop with display.
+
+## How to run
+
+```bash
+pip install -r requirements.txt
+python3 -m tests.test_nn                  # verify math
+python3 main.py --dataset xor             # visualizer (needs display)
+SDL_VIDEODRIVER=dummy python3 main.py ... # headless smoke (no display)
+```
+
+See `README.md` for key bindings and CLI options.
 
 ## Roadmap
 
