@@ -18,14 +18,14 @@ PANEL_H = HEIGHT - TOP_BAR_H
 BG_COLOR = (15, 15, 20)
 BAR_COLOR = (25, 25, 32)
 TEXT_COLOR = (220, 220, 220)
-NODE_OUTLINE = (0, 0, 0)
+NODE_OUTLINE = (45, 50, 65)  # dark slate — pairs with bg (15,15,20) without pure black
 CONN_NEG = (60, 120, 255)
 CONN_POS = (255, 80, 80)
 CLASS_COLORS = [(40, 200, 180), (255, 150, 50), (220, 60, 200)]
 
 GRID_RES = 40
 NODE_RADIUS = 18
-NODE_OUTLINE_W = 4
+NODE_OUTLINE_W = 6
 NODE_END_INSET = 0.12  # input/output layers inset this fraction from panel edge
 
 
@@ -161,12 +161,14 @@ class Visualizer:
                 y = _calc_y(j, n_nodes, n_total, pos_y, size_h)
                 gray = int(np.clip(values[j] * 255, 0, 255))
                 fill = (gray, gray, gray)
-                pygame.gfxdraw.filled_circle(self.screen, x, y, NODE_RADIUS, fill)
-                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, fill)
-                # Outline: thick + AA blend (draw.circle is stair-stepped but
-                # accepts width; gfxdraw.aacircle overdraws a 1px AA halo on top).
+                # Outline first (behind fill), full radius, so the fill covers
+                # the inner half of the border and only the outer half shows.
                 pygame.draw.circle(self.screen, NODE_OUTLINE, (x, y), NODE_RADIUS, NODE_OUTLINE_W)
-                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS + NODE_OUTLINE_W // 2, NODE_OUTLINE)
+                inner = NODE_RADIUS - NODE_OUTLINE_W // 2
+                pygame.gfxdraw.filled_circle(self.screen, x, y, inner, fill)
+                pygame.gfxdraw.aacircle(self.screen, x, y, inner, fill)
+                # Outer AA halo on the border.
+                pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, NODE_OUTLINE)
 
 
 # --- standalone demo: run on hardcoded XOR ---------------------------------
