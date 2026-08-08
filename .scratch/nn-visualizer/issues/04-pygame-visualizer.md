@@ -14,8 +14,10 @@ datasets via the main loop in ticket 05.
 
 **Status:** ready-for-agent
 
-- [ ] `visualizer.py` exposes a `Visualizer` class taking a
-      `NeuralNetwork` and a window size.
+- [ ] `visualizer.py` exposes a `Visualizer` class. Render-only:
+      takes no constructor args (window size is a module constant);
+      the network is bound per-frame via `update(nn, ...)`. Keeps
+      the caller in control of training.
 - [ ] Left panel (~640×660 below the top bar): decision boundary
       rendered as a 40×40 colored grid, each cell colored by the
       predicted class for that (x, y) input. Three class colors
@@ -23,8 +25,9 @@ datasets via the main loop in ticket 05.
 - [ ] Right panel (~640×660): weight graph. Nodes drawn as circles
       (radius 18px, 2px black outline, fill = activation clamped to
       [0, 255]). Connections drawn as lines, **blue for negative
-      weight, red for positive**, thickness = `min(5, int(abs(w)
-      * 2))`. No labels on weights or biases (per spec).
+      weight, red for positive**, thickness = `max(1, min(5, int(abs(w)
+      * 2)))` — spec multiplier, floored at 1 so near-zero weights
+      still draw. No labels on weights or biases (per spec).
 - [ ] Top bar (60px tall): white monospace text showing current
       epoch, loss (rounded to 3 decimals), accuracy (rounded to 2
       decimals), and dataset name.
