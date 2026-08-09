@@ -109,24 +109,23 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 
 ## v2 ticket queue (next session)
 
-11 tickets; **01 + 08 landed (PRs #10, #11, merged 2026-08-08)**.
-Remaining 9 tickets, dependency graph:
+11 tickets; **5 landed** (PRs #10, #11, #12, #13, #14, merged 2026-08-08):
+01, 08, 02, 04, 05. Remaining 6 tickets, dependency graph:
 ```
-02 ─→ 03 ──┐
-04 ───────┼─→ 06 ─→ 07
-   └→ 05 ──┘
-                │
-                └→ 09 ─→ 10 ─→ 11
+03 ──�
+06 ──┼─→ 07
+    │
+    └→ 09 ─→ 10 ─→ 11
 ```
 
-- **02** mountaincar env + rollout — start here, no blocker
-- **04** LayerNorm + Residual + AdamW — independent of 02, parallel
-- **05** multi-head attention — independent of 02/04, parallel
-- **03, 06, 07** sequence as graph
-- **09, 10, 11** finalize (visualizer v2 panels, main registry, wrap-up)
+- **03** REINFORCE trainer (needs 02, done)
+- **06** transformer block + model stack (needs 04+05, both done)
+- **07** transformer trainer (needs 06+04)
+- **09** v2 visualizer panels (gym render + attention heatmap)
+- **10** main.py registry + v2 keys
+- **11** wrap-up: requirements + v0.2.0
 
-All in `.scratch/nn-v2-future/issues/02-mountaincar-env-and-rollout.md`
-etc.
+All in `.scratch/nn-v2-future/issues/03-reinforce-trainer.md` etc.
 
 ## Conventions
 
@@ -144,6 +143,18 @@ etc.
 
 ## Pitfalls (real ones)
 
+- **PR #14 critical bug catch (2026-08-08)**: in-place SGD updates
+  of weights (`W -= dW` with lr=1.0) inside `backward()` mutate the
+  weight matrix BEFORE the gradient flow computes `d_pre = grad @
+  W.T`. Always compute `d_pre` (and any downstream gradient that
+  uses the weight) FIRST, then mutate. Pattern: keep mutation at
+  the END of backward(). Caught by upgrading FD test from
+  `d_model=4` → `d_model=8` — smaller scale masked the bug.
+- **PR #13 review catch (2026-08-08)**: test scope creep. Ticket 04
+  said `test_modules.py` = LN + Residual only; PR duplicated AdamW
+  tests in both `test_modules.py` and `test_optim.py`. Lesson: when
+  ticket explicitly scopes a test file, respect it — duplicates make
+  refactors painful.
 - **PR #11 review catch (2026-08-08)**: silent fallback in
   `set_panel()` hid caller bugs. Now raises `ValueError` on unknown
   panel name. Pattern: silent fallback over raising almost always

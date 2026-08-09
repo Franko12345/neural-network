@@ -20,10 +20,10 @@ residual, multi-head attention).
 | # | Title | Blocked by | Status |
 |---|---|---|---|
 | [01](./01-extract-layers.md) | Extract `layers.py` building blocks | None | implemented |
-| [02](./02-mountaincar-env-and-rollout.md) | MountainCar env wrapper + rollout batch | 01 | ready-for-agent |
+| [02](./02-mountaincar-env-and-rollout.md) | MountainCar env wrapper + rollout batch | 01 | implemented |
 | [03](./03-reinforce-trainer.md) | REINFORCE trainer with baseline | 01, 02 | ready-for-agent |
-| [04](./04-layernorm-residual-adamw.md) | LayerNorm + Residual + AdamW | 01 | ready-for-agent |
-| [05](./05-multi-head-attention.md) | Multi-head attention with causal mask | 01 | ready-for-agent |
+| [04](./04-layernorm-residual-adamw.md) | LayerNorm + Residual + AdamW | 01 | implemented |
+| [05](./05-multi-head-attention.md) | Multi-head attention with causal mask | 01 | implemented |
 | [06](./06-transformer-block-and-model.md) | Transformer block + model stack | 04, 05 | ready-for-agent |
 | [07](./07-transformer-trainer.md) | Transformer trainer + checkpointing | 06, 04 | ready-for-agent |
 | [08](./08-visualizer-refactor-metrics-tabs.md) | Visualizer refactor: metrics dict + tabs | None | implemented |
@@ -33,12 +33,9 @@ residual, multi-head attention).
 
 ## Frontier (parallelizable)
 
-**01 and 08 landed (PRs #10, #11, merged 2026-08-08).** Frontier now:
-- **02** and **04** are independent — both can run in parallel.
-- **05** can run in parallel with **04** (multi-head attention only
-  needs 01).
-- **03** waits for 02 (01 done).
-- **06** waits for 04+05.
+**01, 02, 04, 05, 08 landed (PRs #10-#14, merged 2026-08-08).** Frontier now:
+- **03** (REINFORCE) and **06** (transformer block+model) are independent
+  — both can run in parallel (03 needs 02; 06 needs 04+05).
 - **07** waits for 06+04.
 - **09** waits for 03+06 (08 done).
 - **10** waits for 09.
