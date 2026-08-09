@@ -194,12 +194,17 @@ class Visualizer:
     def _draw_attention_heatmap(self, attn: np.ndarray | None,
                                 head: int = 0) -> None:
         """Render attn[head] as a heatmap (T x T) on the right panel.
-        Color: dark blue (low) → yellow → red (high)."""
+        Color: dark blue (low) → yellow → red (high).
+
+        Accepts both (H, T, T) (multi-head) and (T, T) (single matrix)."""
         if attn is None:
             return
-        if head >= attn.shape[0]:
-            head = 0
-        mat = attn[head]
+        if attn.ndim == 3:
+            if head >= attn.shape[0]:
+                head = 0
+            mat = attn[head]
+        else:
+            mat = attn
         T = mat.shape[0]
         if T == 0:
             return

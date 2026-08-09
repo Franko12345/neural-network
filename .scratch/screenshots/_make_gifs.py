@@ -22,7 +22,9 @@ EPOCHS_PER_FRAME = 30  # so each GIF shows meaningful learning progress
 
 
 def capture_dataset(name: str, arch: list[int], out_dir: str) -> int:
-    gen = DATASETS[name]
+    # For spiral/spiral_deep we use the same generator (different arch).
+    base_name = "spiral" if name.startswith("spiral") else name
+    gen = DATASETS[base_name]
     X, y = gen(n=200, seed=0)
     Y = one_hot(y, arch[-1])
     nn = NeuralNetwork(arch, ["relu"] * (len(arch) - 2) + ["softmax"])
@@ -65,11 +67,21 @@ def make_gif(frames_dir: str, gif_path: str) -> None:
 def main() -> int:
     out_root = ".scratch/screenshots/gif-frames"
     final_dir = ".scratch/screenshots"
-    for name, arch in [("xor", [2, 8, 8, 2]), ("circle", [2, 8, 8, 2]), ("spiral", [2, 16, 16, 3])]:
+    # Each tuple: (name, arch). XOR + circle use the small arch; spiral
+    # gets two variants — baseline [2, 16, 16, 3] AND a deeper
+    # [2, 32, 32, 32, 3] (4 hidden layers) showing how extra depth
+    # helps the hardest 3-class task.
+    targets = [
+        ("xor", [2, 8, 8, 2]),
+        ("circle", [2, 8, 8, 2]),
+        ("spiral", [2, 16, 16, 3]),
+        ("spiral_deep", [2, 32, 32, 32, 3]),
+    ]
+    for name, arch in targets:
         d = f"{out_root}/{name}"
         if os.path.isdir(d):
             shutil.rmtree(d)
-        print(f"capturing {name} ({FRAMES_PER_DATASET} frames)...")
+        print(f"capturing {name} arch={arch} ({FRAMES_PER_DATASET} frames)...")
         capture_dataset(name, arch, d)
         gif_path = f"{final_dir}/{name}.gif"
         print(f"  encoding {gif_path}...")

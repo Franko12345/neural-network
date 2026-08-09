@@ -31,13 +31,15 @@ The visualizer shows two panels side-by-side:
   (white = full, black = zero), connections are lines **blue for
   negative weight, red for positive**, thickness by |weight|.
 
-| XOR | Circle | Spiral |
-| :-: | :-: | :-: |
-| ![](.scratch/screenshots/xor.gif) | ![](.scratch/screenshots/circle.gif) | ![](.scratch/screenshots/spiral.gif) |
+| XOR | Circle | Spiral | Spiral (deep) |
+| :-: | :-: | :-: | :-: |
+| ![](.scratch/screenshots/xor.gif) | ![](.scratch/screenshots/circle.gif) | ![](.scratch/screenshots/spiral.gif) | ![](.scratch/screenshots/spiral_deep.gif) |
 
 Each GIF is 120 frames at 20fps (6s loop). Watch the decision boundary
 on the left deform as the loss falls, and the weight graph on the
-right shift colors.
+right shift colors. The deep variant (`spiral_deep`) uses arch
+`[2, 32, 32, 32, 3]` — 4 hidden layers — showing how extra depth helps
+the hardest 3-class task.
 
 ### v2 — MountainCar + Transformer
 
@@ -48,9 +50,18 @@ empty for the new modes):
   in the actual gym environment (gymnasium's `MountainCar-v0`).
   The car learns to swing up the hill via REINFORCE with constant
   baseline.
+
+| MountainCar (REINFORCE) |
+| :-: |
+| ![](.scratch/screenshots/mountaincar.gif) |
+
 - **Transformer (`key 5`)**: left panel shows a multi-head attention
   heatmap (dark blue = low attention, yellow = mid, red = high).
   The right panel keeps the weight graph.
+
+| Transformer (training) | Transformer (sampling) |
+| :-: | :-: |
+| ![](.scratch/screenshots/transformer_train.gif) | ![](.scratch/screenshots/transformer_sample.gif) |
 
 ## Quick start
 
