@@ -9,6 +9,7 @@ decision gets one file, numbered sequentially.
 - [0002 — Numpy-only, no PyTorch / TF](./0002-numpy-only-no-pytorch.md)
 - [0003 — Headless-first validation, pygame display on user's machine](./0003-headless-validation.md)
 - [0004 — Single-context domain docs](./0004-single-context-docs.md)
+- [0005 — v2 builds alongside v1; v1 modules are frozen](./0005-v2-builds-alongside-v1.md)
 
 ## Template
 
