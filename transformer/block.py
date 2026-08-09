@@ -8,11 +8,14 @@ Block layout:
   x = x + MHA(LN1(x))
   x = x + FFN(LN2(x))
 where FFN = Linear → ReLU → Linear.
+
+Inlined pre-norm: no Residual wrapper, no private wrapper classes —
+the gradient split (grad + sublayer_grad) is the residual identity,
+written directly. Less ceremony than wrapping a 2-op subgraph.
 """
 import numpy as np
 
 from layers import LayerNorm, Linear, ReLU
-from modules import Residual
 from transformer.attention import MultiHeadAttention
 
 
@@ -28,53 +31,25 @@ class Block:
         self.ffn_lin1 = Linear(d_model, d_ff, rng_seed=seed + 1)
         self.ffn_lin2 = Linear(d_ff, d_model, rng_seed=seed + 2)
         self.relu = ReLU()
-        # Residual wrappers (pre-norm: sublayer takes LN(x))
-        self.res1 = Residual(_MHAWrapper(self.mha, self.ln1))
-        self.res2 = Residual(_FFNWrapper(self.ffn_lin1, self.relu, self.ffn_lin2, self.ln2))
-        self.x = None  # cache for backward
 
     def forward(self, x: np.ndarray) -> np.ndarray:
-        self.x = x
-        return self.res2.forward(self.res1.forward(x))
+        x = x + self.mha.forward(self.ln1.forward(x))
+        x = x + self.ffn_lin2.forward(
+            self.relu.forward(self.ffn_lin1.forward(self.ln2.forward(x)))
+        )
+        return x
 
     def backward(self, grad: np.ndarray) -> np.ndarray:
-        # Backward through res2 → res1 → input
-        grad = self.res2.backward(grad)
-        grad = self.res1.backward(grad)
-        return grad
-
-
-class _MHAWrapper:
-    """Apply LN first, then MHA. Used by Residual as the wrapped fn."""
-
-    def __init__(self, mha: MultiHeadAttention, ln: LayerNorm):
-        self.mha = mha
-        self.ln = ln
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        return self.mha.forward(self.ln.forward(x))
-
-    def backward(self, grad: np.ndarray) -> np.ndarray:
-        # grad is dL/d(MHA_out). dL/d(LN_out) = dL/d(MHA_in) via MHA backward.
-        d_ln_out = self.mha.backward(grad)
-        # LN backward returns dL/d(LN_in) = dL/d(block_x).
-        return self.ln.backward(d_ln_out)
-
-
-class _FFNWrapper:
-    """Apply LN first, then FFN (Linear→ReLU→Linear)."""
-
-    def __init__(self, lin1: Linear, relu: ReLU, lin2: Linear, ln: LayerNorm):
-        self.lin1 = lin1
-        self.relu = relu
-        self.lin2 = lin2
-        self.ln = ln
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        return self.lin2.forward(self.relu.forward(self.lin1.forward(self.ln.forward(x))))
-
-    def backward(self, grad: np.ndarray) -> np.ndarray:
-        d_lin2_in = self.lin2.backward(grad)
+        # Residual #2: x = x + FFN(LN2(x)). grad_out splits into identity
+        # path (+grad) and FFN path.
+        d_lin2_out = grad
+        d_lin2_in = self.ffn_lin2.backward(d_lin2_out)
         d_relu_in = self.relu.backward(d_lin2_in)
-        d_lin1_in = self.lin1.backward(d_relu_in)
-        return self.ln.backward(d_lin1_in)
+        d_lin1_in = self.ffn_lin1.backward(d_relu_in)
+        d_ln2_in = self.ln2.backward(d_lin1_in)
+        grad = grad + d_ln2_in  # residual split
+        # Residual #1: x = x + MHA(LN1(x)).
+        d_mha_out = grad
+        d_mha_in = self.mha.backward(d_mha_out)
+        d_ln1_in = self.ln1.backward(d_mha_in)
+        return grad + d_ln1_in  # residual split

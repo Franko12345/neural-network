@@ -9,7 +9,7 @@ Architecture (defaults match v2 spec):
 """
 import numpy as np
 
-from layers import LayerNorm, Linear, Softmax
+from layers import LayerNorm, Linear
 from transformer.block import Block
 from transformer.embed import Embedding, PositionalEncoding
 
@@ -38,10 +38,7 @@ class Transformer:
         ]
         self.final_ln = LayerNorm(d_model=d_model)
         self.lm_head = Linear(d_model, vocab, rng_seed=seed + 100)
-        # softmax exposed for trainer (fused CE use)
-        self.softmax = Softmax(axis=-1)
         # Cache for backward
-        self._cache = None  # list of (input_to_each_module, output_of_each_module)
 
     def forward(self, token_ids: np.ndarray) -> np.ndarray:
         """token_ids: (B, T) int -> logits: (B, T, vocab)."""
@@ -85,13 +82,11 @@ class Transformer:
             probs = np.exp(shifted) / np.exp(shifted).sum(axis=-1, keepdims=True)
             # top-k truncation
             if top_k is not None and top_k < probs.shape[-1]:
-                # Zero out everything below top_k
                 topk_idx = np.argpartition(-probs, top_k, axis=-1)[:, :top_k]
                 mask = np.zeros_like(probs, dtype=bool)
-                for b in range(probs.shape[0]):
-                    mask[b, topk_idx[b]] = True
+                np.put_along_axis(mask, topk_idx, True, axis=-1)
                 probs = np.where(mask, probs, 0.0)
-                probs = probs / probs.sum(axis=-1, keepdims=True)
+                probs /= probs.sum(axis=-1, keepdims=True)
             next_ids = np.array([
                 np.random.choice(probs.shape[-1], p=probs[b])
                 for b in range(probs.shape[0])
