@@ -42,7 +42,7 @@ def test_set_panel_unknown_raises() -> bool:
     viz = Visualizer()
     try:
         try:
-            viz.set_panel("attention_heatmap")
+            viz.set_panel("not_a_real_panel")
         except ValueError:
             return True
         return False

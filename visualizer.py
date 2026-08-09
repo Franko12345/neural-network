@@ -58,9 +58,28 @@ def _connection_thickness(weight: float) -> int:
     return max(1, min(5, int(abs(weight) * 2)))
 
 
+def _heat_color(v: float) -> tuple:
+    """Blue (low) → yellow (mid) → red (high). v in [0, 1]."""
+    v = max(0.0, min(1.0, v))
+    if v < 0.5:
+        # blue → yellow
+        t = v * 2.0
+        r = int(40 + t * (255 - 40))
+        g = int(80 + t * (255 - 80))
+        b = int(200 - t * (200 - 60))
+    else:
+        # yellow → red
+        t = (v - 0.5) * 2.0
+        r = int(255 - t * (255 - 200))
+        g = int(255 - t * (255 - 60))
+        b = int(60 - t * 60)
+    return (r, g, b)
+
+
 # v2 panels available. Ticket 09 adds gym_render / attention_heatmap /
 # attention_inspector. Unknown panel names now raise (caller bug, not ours).
-KNOWN_PANELS = {"boundary", "weight_graph"}
+KNOWN_PANELS = {"boundary", "weight_graph", "gym_render",
+                 "attention_heatmap", "attention_inspector"}
 
 
 class Visualizer:
@@ -129,13 +148,101 @@ class Visualizer:
     ) -> None:
         self.screen.fill(BG_COLOR)
         self._draw_top_bar(metrics)
-        if nn is not None:
+        # Right-panel mode routes to a different renderer. The left side
+        # stays empty for gym_render / attention_* modes (the panel is
+        # the whole right half). For boundary / weight_graph, we render
+        # the v1 left+right split.
+        if self.panel in ("gym_render", "attention_heatmap", "attention_inspector"):
+            self._draw_right_panel(metrics)
+        elif nn is not None:
             assert X is not None and y_int is not None, (
                 "nn given without X/y_int"
             )
             self._draw_decision_boundary(nn, X, y_int)
             self._draw_weight_graph(nn)
         pygame.display.flip()
+
+    def _draw_right_panel(self, metrics: dict) -> None:
+        """Dispatch to the right-panel renderer based on self.panel."""
+        if self.panel == "gym_render":
+            self._draw_gym_render(metrics.get("frame"))
+        elif self.panel == "attention_heatmap":
+            self._draw_attention_heatmap(metrics.get("attention_weights"),
+                                         head=metrics.get("selected_head", 0))
+        elif self.panel == "attention_inspector":
+            head = metrics.get("selected_head", 0)
+            layer = metrics.get("selected_layer", 0)
+            self._draw_attention_inspector(metrics.get("attention_weights"),
+                                           head=head, layer=layer,
+                                           n_layers=metrics.get("n_layers", 1))
+
+    def _draw_gym_render(self, frame: np.ndarray | None) -> None:
+        """Render the gym env frame as a pygame surface on the right
+        panel. Frame is (H, W, 3) uint8."""
+        if frame is None:
+            return
+        # Transpose to (W, H, 3) for pygame.surfarray
+        h, w = frame.shape[:2]
+        # Scale frame to fit the right panel
+        surf = pygame.Surface((w, h))
+        pygame.surfarray.blit_array(surf, np.transpose(frame, (1, 0, 2)))
+        # Blit onto right panel area
+        dest_x = PANEL_W + (PANEL_W - w) // 2
+        dest_y = TOP_BAR_H + (PANEL_H - h) // 2
+        self.screen.blit(surf, (dest_x, dest_y))
+
+    def _draw_attention_heatmap(self, attn: np.ndarray | None,
+                                head: int = 0) -> None:
+        """Render attn[head] as a heatmap (T x T) on the right panel.
+        Color: dark blue (low) → yellow → red (high)."""
+        if attn is None:
+            return
+        if head >= attn.shape[0]:
+            head = 0
+        mat = attn[head]
+        T = mat.shape[0]
+        if T == 0:
+            return
+        # Cell size: fit T x T into PANEL_W x PANEL_H minus margins.
+        cell = min((PANEL_W - 40) // T, (PANEL_H - 40) // T)
+        ox = PANEL_W + 20
+        oy = TOP_BAR_H + 20
+        # Color mapping: low=blue, mid=yellow, high=red (perceptually OK).
+        for i in range(T):
+            for j in range(T):
+                v = float(mat[i, j])
+                color = _heat_color(v)
+                pygame.draw.rect(self.screen, color,
+                                 (ox + j * cell, oy + i * cell, cell, cell))
+
+    def _draw_attention_inspector(self, attn: np.ndarray | None,
+                                   head: int = 0, layer: int = 0,
+                                   n_layers: int = 1) -> None:
+        """Render selected layer/head's attention on right panel;
+        draw a small grid of head thumbnails for the inspector."""
+        if attn is None:
+            return
+        if attn.ndim == 3:
+            # Single layer: shape (H, T, T)
+            layers = [attn]
+        else:
+            # Multi-layer: shape (L, H, T, T)
+            layer = min(layer, attn.shape[0] - 1)
+            layers = [attn[layer]]
+        # Big heatmap on top
+        self._draw_attention_heatmap(layers[0], head=head)
+        # Head thumbnails on bottom
+        n_heads = layers[0].shape[0]
+        T = layers[0].shape[1]
+        thumb_size = max(8, min(40, (PANEL_H // 2) // max(n_heads, 1)))
+        ox = PANEL_W + 20
+        oy = TOP_BAR_H + PANEL_H // 2 + 10
+        for h in range(n_heads):
+            sel = (h == head)
+            color = (255, 255, 0) if sel else (80, 80, 80)
+            pygame.draw.rect(self.screen, color,
+                             (ox + h * (thumb_size + 2),
+                              oy, thumb_size, thumb_size), 1)
 
     def _draw_top_bar(self, metrics: dict) -> None:
         pygame.draw.rect(self.screen, BAR_COLOR, (0, 0, WIDTH, TOP_BAR_H))
