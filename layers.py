@@ -65,7 +65,11 @@ class Sigmoid:
 
 
 class Softmax:
-    """Softmax along `axis`. Exposes `.x` for fused CE gradient."""
+    """Softmax along `axis`. After forward(), `self.a` holds the probs.
+
+    ponytail: callers in this codebase fuse with cross-entropy
+    (use `self.a - y_target` directly; cheaper + numerically nicer
+    than generic backward). backward() stays for non-CE cases."""
 
     def __init__(self, axis: int = -1):
         self.axis = axis
@@ -74,13 +78,11 @@ class Softmax:
         self.x = x
         shift = x - x.max(axis=self.axis, keepdims=True)
         e = np.exp(shift)
-        return e / e.sum(axis=self.axis, keepdims=True)
+        self.a = e / e.sum(axis=self.axis, keepdims=True)
+        return self.a
 
     def backward(self, grad: np.ndarray) -> np.ndarray:
-        """Generic softmax Jacobian. Callers should fuse with CE
-        (use `self.x - y_target`) — that's faster and numerically nicer."""
-        a = np.exp(self.x - self.x.max(axis=self.axis, keepdims=True))
-        a = a / a.sum(axis=self.axis, keepdims=True)
-        # diag(a) - a a^T applied to grad, vectorized per row
+        # Generic Jacobian-vector product per row.
+        a = self.a
         dot = (a * grad).sum(axis=self.axis, keepdims=True)
         return a * (grad - dot)
