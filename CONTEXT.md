@@ -109,20 +109,24 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 
 ## v2 ticket queue (next session)
 
-11 tickets, dependency graph:
+11 tickets; **01 + 08 landed (PRs #10, #11, merged 2026-08-08)**.
+Remaining 9 tickets, dependency graph:
 ```
-01 ─┬─→ 02 ─→ 03 ─┐
-    ├─→ 04 ──────┼─→ 07
-    │    ├─→ 05 ─→ 06 ─┘
-    │                  │
-    └─→ 08 (paralelo) ─┴─→ 09 ─→ 10 ─→ 11
+02 ─→ 03 ──┐
+04 ───────┼─→ 06 ─→ 07
+   └→ 05 ──┘
+                │
+                └→ 09 ─→ 10 ─→ 11
 ```
 
-- **01** extract `layers.py` building blocks — start here, no blocker
-- **08** visualizer refactor — parallel to math work
-- **11** wrap-up: `requirements.txt` + bump v0.2.0 + release notes
+- **02** mountaincar env + rollout — start here, no blocker
+- **04** LayerNorm + Residual + AdamW — independent of 02, parallel
+- **05** multi-head attention — independent of 02/04, parallel
+- **03, 06, 07** sequence as graph
+- **09, 10, 11** finalize (visualizer v2 panels, main registry, wrap-up)
 
-All in `.scratch/nn-v2-future/issues/01-extract-layers.md` etc.
+All in `.scratch/nn-v2-future/issues/02-mountaincar-env-and-rollout.md`
+etc.
 
 ## Conventions
 
@@ -139,6 +143,25 @@ All in `.scratch/nn-v2-future/issues/01-extract-layers.md` etc.
   flips, ADRs).
 
 ## Pitfalls (real ones)
+
+- **PR #11 review catch (2026-08-08)**: silent fallback in
+  `set_panel()` hid caller bugs. Now raises `ValueError` on unknown
+  panel name. Pattern: silent fallback over raising almost always
+  means caller typo goes undetected — raise, don't guess.
+- **PR #10 review catch**: `Softmax.forward` recomputed probabilities
+  on every `backward()` call. Cached in `self.a`. Pattern: if a
+  backward() needs a forward output, cache it on forward, don't
+  recompute.
+- **PR #11 ticket wording drift**: ticket 08 said
+  `update(nn_or_None, X_or_None, metrics, panel)` literally; the
+  implemented `update(metrics, panel, *, nn=None, X=None, y=None)`
+  satisfied the SPIRIT (flat metrics dict + panel selector) but
+  violated the literal signature. Resolved by updating the ticket
+  wording to match the simpler API — split render payload from
+  metrics via kwargs. Lesson: ticket text can drift; when reviewer
+  flags a literal vs spirit mismatch, fix the ticket, not the code.
+
+
 
 - **Pygame won't open on the LXC** — display is on Franko's desktop.
 - **Spiral with 3 classes is hard for a tiny arch** — `[2, 16, 16, 3]`
