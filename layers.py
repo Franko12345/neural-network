@@ -86,3 +86,55 @@ class Softmax:
         a = self.a
         dot = (a * grad).sum(axis=self.axis, keepdims=True)
         return a * (grad - dot)
+
+
+class LayerNorm:
+    """Layer normalization over the last axis. Learnable gamma/beta.
+
+    ponytail: gamma init = 1, beta init = 0; standard parametrization.
+    eps = 1e-5 to match PyTorch default.
+    """
+
+    def __init__(self, d_model: int, eps: float = 1e-5,
+                 gamma: np.ndarray | None = None,
+                 beta: np.ndarray | None = None):
+        self.d_model = d_model
+        self.eps = eps
+        # trainable params; init gamma=1, beta=0
+        self.gamma = np.ones((d_model,)) if gamma is None else gamma.astype(float)
+        self.beta = np.zeros((d_model,)) if beta is None else beta.astype(float)
+        self.x = None
+        self.mu = None
+        self.var = None
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        self.x = x
+        # mean/var along last axis; keepdims so broadcast works on (..., d_model)
+        self.mu = x.mean(axis=-1, keepdims=True)
+        self.var = x.var(axis=-1, keepdims=True)
+        self.x_hat = (x - self.mu) / np.sqrt(self.var + self.eps)
+        return self.gamma * self.x_hat + self.beta
+
+    def backward(self, grad: np.ndarray) -> np.ndarray:
+        # Standard LN backward. d_model = D for shorthand.
+        x_hat = self.x_hat
+        D = x_hat.shape[-1]
+        # d/dx_hat
+        dx_hat = grad * self.gamma
+        # d/dvar
+        dvar = (dx_hat * (self.x - self.mu) * -0.5 *
+                (self.var + self.eps) ** -1.5).sum(axis=-1, keepdims=True)
+        # d/dmu
+        dmu = (dx_hat * -1.0 / np.sqrt(self.var + self.eps)).sum(
+            axis=-1, keepdims=True
+        ) + dvar * ((self.x - self.mu) * -2.0).mean(axis=-1, keepdims=True)
+        # d/dx
+        dx = dx_hat / np.sqrt(self.var + self.eps) + dvar * 2.0 * (
+            self.x - self.mu
+        ) / D + dmu / D
+        # gradients on gamma/beta; in-place SGD update like Linear
+        self.d_gamma = (grad * x_hat).sum(axis=tuple(range(grad.ndim - 1)))
+        self.d_beta = grad.sum(axis=tuple(range(grad.ndim - 1)))
+        self.gamma -= self.d_gamma
+        self.beta -= self.d_beta
+        return dx
