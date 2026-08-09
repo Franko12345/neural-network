@@ -5,11 +5,22 @@
 
 ## What this is
 
-A from-scratch feedforward neural network in **numpy**, with a
-**pygame** visualizer that animates the decision boundary and the
-weight graph during training. Three toy datasets: XOR, circle, spiral.
+A from-scratch educational deep learning library in **numpy**, with a
+**pygame** visualizer that animates everything live: decision boundary,
+weight graph, MountainCar environment, multi-head attention heatmap.
 
-**Shipped as v0.1.0.** See https://github.com/Franko12345/neural-network/releases/tag/v0.1.0
+**v1 (shipped v0.1.0)** — feedforward NN on three toy datasets
+(XOR, circle, spiral). Validates backprop primitives + visualizer.
+
+**v2 (shipped v0.2.0)** — MountainCar-v0 with REINFORCE (constant
+baseline) + decoder-only transformer from scratch (~600K params,
+char-level Shakespeare). Built alongside v1 — v1 files stayed frozen
+throughout (0 diff lines per merge on nn.py / datasets.py /
+tests/test_nn.py).
+
+Releases:
+- https://github.com/Franko12345/neural-network/releases/tag/v0.1.0
+- https://github.com/Franko12345/neural-network/releases/tag/v0.2.0
 
 ## Goals
 
@@ -50,23 +61,64 @@ neural-network/
 ├── README.md                     # user-facing docs (with GIFs)
 ├── nn.py                         # v1 core math (FROZEN — do not modify)
 ├── datasets.py                   # v1 toy dataset generators (FROZEN)
-├── visualizer.py                 # v1 pygame render (FROZEN v1 surface)
-├── main.py                       # v1 CLI loop with key/click controls
+├── visualizer.py                 # pygame render (v1 + v2 panels)
+├── main.py                       # CLI loop with task registry (5 tasks)
 ├── sanity.py                     # v1 one-shot smoke check for nn.py
-├── tests/
-│   └── test_nn.py                # v1 headless validation (FROZEN)
-├── requirements.txt              # numpy + pygame-ce pins
+├── layers.py                     # v2 building blocks (Linear, activations, LayerNorm)
+├── modules.py                    # v2 Residual wrapper
+├── optim.py                      # v2 AdamW (decoupled weight decay, bias correction)
+├── envs/                         # v2 MountainCar wrapper + rollout batch collector
+│   ├── __init__.py
+│   ├── mountaincar.py            #   gymnasium MountainCar-v0 wrapper
+│   └── rollout.py                #   RolloutBatch + rollout(env, policy_fn)
+├── transformer/                  # v2 attention, block, model, train
+│   ├── __init__.py
+│   ├── attention.py              #   MultiHeadAttention + strict-causal mask
+│   ├── block.py                  #   pre-norm transformer block
+│   ├── embed.py                  #   Embedding + sinusoidal PositionalEncoding
+│   ├── model.py                  #   Transformer stack + LM head + autoregressive sample()
+│   └── train.py                  #   Trainer (AdamW + checkpoint + auto-load)
+├── data/                         # v2 char-level text loader
+│   ├── __init__.py
+│   ├── text.py                   #   load_text(path) -> (uint8 ids, vocab_size=256)
+│   └── shakespeare.txt           #   bundled clean excerpt (~1.5KB)
+├── train_rl.py                   # v2 REINFORCE trainer with constant baseline
+├── tests/                        # 12 test files, 67 asserts total
+│   ├── test_nn.py                #   v1: 3 datasets, acc thresholds (FROZEN)
+│   ├── test_layers.py            #   v2: Linear/ReLU/Tanh/Sigmoid/Softmax + FD
+│   ├── test_modules.py           #   v2: LayerNorm + Residual
+│   ├── test_optim.py             #   v2: AdamW (bias correction, decoupled WD)
+│   ├── test_attention.py         #   v2: MHA causal mask + multi-head split + FD
+│   ├── test_rollout.py           #   v2: MountainCar env + rollout shape
+│   ├── test_transformer.py       #   v2: Transformer forward/backward + sample + loss drop
+│   ├── test_rl.py                #   v2: REINFORCE gradient + baseline invariance
+│   ├── test_train.py             #   v2: AdamW trainer + checkpoint round-trip + auto-load
+│   ├── test_visualizer.py        #   v2: refactored update(metrics, panel) + set_panel
+│   ├── test_visualizer_v2.py     #   v2: gym_render + attention panels
+│   └── test_main.py              #   v2: task registry + 5 keys under dummy SDL
 ├── docs/
 │   ├── agents/                   # engineering-skill config
-│   └── adr/                      # ADRs (NNNN-kebab-title.md)
+│   └── adr/                      # ADRs (NNNN-kebab-title.md) — see list below
+├── requirements.txt              # numpy + pygame-ce + gymnasium
+├── AGENTS.md                     # agent entry point
+├── CONTEXT.md                    # this file
 └── .scratch/
     ├── nn-visualizer/            # v1 spec + 6 tickets (all implemented)
-    │   ├── README.md             # status: implemented
-    │   └── issues/               # 01-06 all closed
-    ├── nn-v2-future/             # v2 spec + 11 tickets (ready-for-agent)
-    │   ├── README.md             # status: ready-for-agent
-    │   └── issues/               # 01-11 (01-08 unblocked; 09-11 downstream)
-    └── screenshots/              # README GIFs + asset-generation script
+    │   ├── README.md             #   status: implemented
+    │   └── issues/               #   01-06 all closed
+    ├── nn-v2-future/             # v2 spec + 11 tickets (all implemented)
+    │   ├── README.md             #   status: implemented
+    │   └── issues/               #   01-11 all closed
+    └── screenshots/              # README GIFs + asset-generation scripts
+        ├── xor.gif               #   v1: XOR decision boundary
+        ├── circle.gif            #   v1: circle decision boundary
+        ├── spiral.gif            #   v1: spiral decision boundary
+        ├── spiral_deep.gif       #   v1: spiral with [2, 32, 32, 32, 3]
+        ├── mountaincar.gif       #   v2: REINFORCE on MountainCar
+        ├── transformer_train.gif #   v2: attention heatmap during training
+        ├── transformer_sample.gif#   v2: attention during autoregressive sampling
+        ├── _make_gifs.py         #   regenerate v1 GIFs
+        └── _make_v2_gifs.py      #   regenerate v2 GIFs
 ```
 
 ## Status
@@ -82,10 +134,31 @@ merge).
 ## How to run
 
 ```bash
-pip install -r requirements.txt
-python3 -m tests.test_nn                  # verify math
-python3 main.py --dataset xor             # visualizer (needs display)
-SDL_VIDEODRIVER=dummy python3 main.py ... # headless smoke (no display)
+pip install -r requirements.txt          # v1: numpy + pygame-ce; v2 adds gymnasium
+
+# Run any test file (all 12, 67 asserts total, ~5s combined):
+python3 -m tests.test_nn                 # v1 feedforward (~3.7s)
+python3 -m tests.test_layers             # v2 Linear/ReLU/Tanh/Sigmoid/Softmax + FD
+python3 -m tests.test_modules            # v2 LayerNorm + Residual
+python3 -m tests.test_optim              # v2 AdamW
+python3 -m tests.test_attention          # v2 MultiHeadAttention
+python3 -m tests.test_rollout            # v2 MountainCar env + rollout
+python3 -m tests.test_transformer        # v2 Transformer forward/backward + sample
+python3 -m tests.test_rl                 # v2 REINFORCE trainer
+python3 -m tests.test_train              # v2 AdamW trainer + checkpoint
+python3 -m tests.test_visualizer         # v2 refactored visualizer
+python3 -m tests.test_visualizer_v2      # v2 gym_render + attention panels
+python3 -m tests.test_main               # v2 task registry
+
+# Run the visualizer (needs a real display):
+python3 main.py                          # default task = xor
+python3 main.py --task mountaincar        # REINFORCE
+python3 main.py --task transformer        # decoder-only transformer
+
+# Headless smoke (no display required):
+SDL_VIDEODRIVER=dummy python3 main.py --task xor --epochs 5
+SDL_VIDEODRIVER=dummy python3 main.py --task mountaincar
+SDL_VIDEODRIVER=dummy python3 main.py --task transformer
 ```
 
 See `README.md` for key bindings, CLI options, and visual demo GIFs.
@@ -96,7 +169,7 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 |---|---|---|---|
 | **v1 — nn-visualizer** | `implemented` (v0.1.0 released) | `.scratch/nn-visualizer/README.md` | Toy datasets (XOR/circle/spiral) + backprop + pygame viz. ~600 LOC shipped. |
 | **v2 — nn-v2-future** | `implemented` (v0.2.0) | `.scratch/nn-v2-future/README.md` | MountainCar-v0 + REINFORCE + decoder-only transformer from scratch. Adds gymnasium as only new dep. ~2200 LOC estimated. |
-| **v3 — diffusion** | `not specced` | — | 3Blue1Brown cap. 10. Spec when v2 ships. |
+| **v3 — diffusion** | `not specced` | — | 3Blue1Brown ch. 10. Spec when v2 ships — now unblocked since v0.2.0 is released. |
 
 ## Versions must sequence
 
@@ -112,10 +185,25 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 ## v2 ticket queue (final)
 
 11 tickets; **all 11 shipped** (PRs #10-#20, merged 2026-08-08/09):
-01, 08, 02, 04, 05, 03, 06, 07, 09, 10, 11. v0.2.0 tag.
+01, 08, 02, 04, 05, 03, 06, 07, 09, 10, 11. `v0.2.0` tag.
 
-Final commit on main tagged `v0.2.0` (this round). See release notes
+Final commit on main tagged `v0.2.0`. See [v0.2.0 release notes](
+https://github.com/Franko12345/neural-network/releases/tag/v0.2.0)
 for ticket-by-ticket summary.
+
+| # | Ticket | Status | PR |
+|---|---|---|---|
+| 01 | Extract `layers.py` building blocks | implemented | #10 |
+| 02 | MountainCar env wrapper + rollout batch | implemented | #12 |
+| 03 | REINFORCE trainer with baseline | implemented | #15 |
+| 04 | LayerNorm + Residual + AdamW | implemented | #13 |
+| 05 | Multi-head attention + causal mask | implemented | #14 |
+| 06 | Transformer block + model stack | implemented | #16 |
+| 07 | Transformer trainer + AdamW + checkpointing | implemented | #17 |
+| 08 | Visualizer refactor: metrics dict + tabs | implemented | #11 |
+| 09 | Visualizer v2 panels (gym + attention) | implemented | #18 |
+| 10 | `main.py` registry + v2 keys | implemented | #19 |
+| 11 | Wrap-up: requirements + v0.2.0 | implemented | #20 |
 
 ## Conventions
 
@@ -130,6 +218,21 @@ for ticket-by-ticket summary.
 - Reviews fan out in parallel via `delegate_task` (ponytail + Matt
   Pocock + correctness), but skip for docs-only changes (README, spec
   flips, ADRs).
+
+## Architecture Decision Records (ADRs)
+
+Five ADRs in `docs/adr/` capture the project history:
+
+| ADR | Decision |
+|---|---|
+| 0001 | Record architecture decisions (Nygard template) |
+| 0002 | Numpy-only, no PyTorch / TF |
+| 0003 | Headless-first validation, pygame display on user's machine |
+| 0004 | Single-context domain docs |
+| 0005 | v2 builds alongside v1; v1 modules are frozen |
+
+See `docs/adr/README.md` for the index. ADRs are immutable — superseded
+ones get a `Status: Superseded by NNNN` line.
 
 ## Pitfalls (real ones)
 
@@ -201,6 +304,23 @@ for ticket-by-ticket summary.
   (e.g. `-v3.png`) when sending "updated" screenshots through chat.
 - **v1 tests must keep passing** during v2 — see ADR-0003 and ticket
   01 acceptance criteria.
+
+## Session state (2026-08-09 close)
+
+**Repo state:** v1 + v2 both shipped. `main` at tag `v0.2.0`.
+12 test files, 67 asserts. 0 diff lines on v1 frozen files across all
+v2 merges.
+
+**Documentation state:** AGENTS.md, README.md, CONTEXT.md current.
+5 → 6 ADRs (0001-0006). All spec/issue frontmatter flipped to
+`status: implemented`. Release notes published on GitHub for v0.1.0
+and v0.2.0.
+
+**Next session entry point:** the user may pick up v3 (diffusion)
+whenever they're ready. Spec doesn't exist yet — first step is to
+draft `.scratch/nn-v3-diffusion/README.md` (3Blue1Brown ch. 10).
+Alternatively, the project may be considered "done" at v0.2.0 — no
+v3 work required.
 
 ## Related skills (in `~/.hermes/skills/`)
 

@@ -310,6 +310,14 @@ in CWD on `Trainer(...)` construction.
 
 - `CONTEXT.md` — project context, loaded every session
 - `docs/agents/issue-tracker.md` — how issues are tracked
-- `docs/adr/` — architecture decision records
+- `docs/adr/` — architecture decision records (6 ADRs, see `README.md`)
+  - Notably [ADR-0006](./docs/adr/0006-w-order-double-update-trap.md):
+    the `forward`/`backward` contract + how 3 related bugs were caught
+    in v2 PR reviews (W-order in MHA, W-order in Linear, N-D flatten in
+    Linear, double-update in Trainer).
+- `.scratch/screenshots/_make_gifs.py` — regenerate the v1 GIFs
+  (xor/circle/spiral/spiral_deep)
+- `.scratch/screenshots/_make_v2_gifs.py` — regenerate the v2 GIFs
+  (mountaincar/transformer_train/transformer_sample)
 - `neural-networks-foundation` skill — chapter-by-chapter notes from
   3Blue1Brown + Coding Train
