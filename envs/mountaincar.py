@@ -14,27 +14,36 @@ VEL_LO, VEL_HI = -0.07, 0.07
 
 
 def _normalize_obs(obs: np.ndarray) -> np.ndarray:
-    """Map raw obs (position, velocity) to [-1, 1]^2."""
+    """Map raw obs (position, velocity) to [-1, 1]^2. Endpoints exact."""
     pos = 2.0 * (obs[0] - POS_LO) / (POS_HI - POS_LO) - 1.0
     vel = 2.0 * (obs[1] - VEL_LO) / (VEL_HI - VEL_LO) - 1.0
     return np.array([pos, vel], dtype=np.float64)
 
 
 class MountainCarEnv:
-    """Thin wrapper over gymnasium MountainCar-v0."""
+    """Thin wrapper over gymnasium MountainCar-v0.
+
+    reset() returns normalized obs (info dropped; ticket 02 contract).
+    step() returns (next_obs, reward, done, info). info carries
+    {'terminated': bool, 'truncated': bool} so future ticket 03 work
+    can bootstrap on truncated states if needed; 'done' is OR of both.
+    """
 
     def __init__(self):
         # ponytail: rgb_array mode so render() returns np.ndarray, not None
         self._env = gym.make("MountainCar-v0", render_mode="rgb_array")
         self.action_space_n = self._env.action_space.n
 
-    def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        obs, info = self._env.reset(seed=seed)
-        return _normalize_obs(obs), info
+    def reset(self, seed: int | None = None) -> np.ndarray:
+        obs, _info = self._env.reset(seed=seed)
+        return _normalize_obs(obs)
 
-    def step(self, action: int) -> tuple[np.ndarray, float, bool]:
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, dict]:
         obs, reward, terminated, truncated, _info = self._env.step(int(action))
-        return _normalize_obs(obs), float(reward), bool(terminated or truncated)
+        next_obs = _normalize_obs(obs)
+        done = bool(terminated or truncated)
+        info = {"terminated": bool(terminated), "truncated": bool(truncated)}
+        return next_obs, float(reward), done, info
 
     def render(self) -> np.ndarray:
         """Return the latest frame as RGB array (H, W, 3) uint8."""

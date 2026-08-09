@@ -2,8 +2,8 @@
 
 ponytail: policy_fn(state) -> (action, log_prob). Caller owns the
 policy (built on layers.Linear); this module just accumulates.
-Episode boundaries are tracked separately so downstream trainers
-can apply per-episode discounts without re-scanning.
+Episode boundaries tracked separately for downstream per-episode
+discounts (ticket 03).
 """
 from dataclasses import dataclass
 
@@ -12,12 +12,12 @@ import numpy as np
 
 @dataclass
 class RolloutBatch:
-    states: np.ndarray       # (T, obs_dim) float32
+    states: np.ndarray       # (T, obs_dim) float64
     actions: np.ndarray      # (T,) int64
-    rewards: np.ndarray      # (T,) float32
-    log_probs: np.ndarray    # (T,) float32
-    episode_starts: list[int]
-    episode_ends: list[int]
+    rewards: np.ndarray      # (T,) float64
+    log_probs: np.ndarray    # (T,) float64
+    episode_starts: list[int]   # index of first step of each episode
+    episode_ends: list[int]     # index past last step of each episode
 
 
 def rollout(
@@ -30,21 +30,19 @@ def rollout(
     """Run `n_episodes` episodes; collect (state, action, reward, log_prob)."""
     states, actions, rewards, log_probs = [], [], [], []
     starts, ends = [], []
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     for _ in range(n_episodes):
-        obs, _ = env.reset(seed=int(np.random.randint(0, 2**31 - 1)))
-        starts.append(int(np.sum([len(a) for a in (actions,)])))
+        obs = env.reset(seed=int(rng.integers(0, 2**31 - 1)))
+        starts.append(len(states))
         for _t in range(max_steps):
             a, lp = policy_fn(obs)
             a = int(a)
             states.append(obs)
             actions.append(a)
             log_probs.append(lp)
-            next_obs, reward, done = env.step(a)
+            obs, reward, done, _info = env.step(a)
             rewards.append(reward)
-            obs = next_obs
             if done:
                 break
         ends.append(len(states))
