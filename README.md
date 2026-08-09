@@ -133,8 +133,10 @@ sane at start. Full-batch SGD — swap to minibatch if you scale past
 
 ## What's next
 
-- **v2** — `MountainCar-v0` with REINFORCE + a decoder-only transformer
-  from scratch. Spec: `.scratch/nn-v2-future/README.md` (draft).
+- **v2 (shipped v0.2.0)** — `MountainCar-v0` with REINFORCE (constant
+  baseline) + a decoder-only transformer from scratch (~600K params,
+  char-level Shakespeare). Press `4` for MountainCar or `5` for the
+  transformer visualizer. See release notes for `v0.2.0`.
 
 ## See also
 
