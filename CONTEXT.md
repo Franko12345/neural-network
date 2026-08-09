@@ -109,23 +109,18 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 
 ## v2 ticket queue (next session)
 
-11 tickets; **5 landed** (PRs #10, #11, #12, #13, #14, merged 2026-08-08):
-01, 08, 02, 04, 05. Remaining 6 tickets, dependency graph:
+11 tickets; **7 landed** (PRs #10-#16, merged 2026-08-08/09):
+01, 08, 02, 04, 05, 03, 06. Remaining 4 tickets:
 ```
-03 ──�
-06 ──┼─→ 07
-    │
-    └→ 09 ─→ 10 ─→ 11
+07 ──→ 09 ─→ 10 ─→ 11
 ```
 
-- **03** REINFORCE trainer (needs 02, done)
-- **06** transformer block + model stack (needs 04+05, both done)
-- **07** transformer trainer (needs 06+04)
+- **07** transformer trainer (needs 06+04, both done)
 - **09** v2 visualizer panels (gym render + attention heatmap)
 - **10** main.py registry + v2 keys
 - **11** wrap-up: requirements + v0.2.0
 
-All in `.scratch/nn-v2-future/issues/03-reinforce-trainer.md` etc.
+All in `.scratch/nn-v2-future/issues/07-transformer-trainer.md` etc.
 
 ## Conventions
 
@@ -143,7 +138,19 @@ All in `.scratch/nn-v2-future/issues/03-reinforce-trainer.md` etc.
 
 ## Pitfalls (real ones)
 
-- **PR #14 critical bug catch (2026-08-08)**: in-place SGD updates
+- **PR #16 critical bug catch (2026-08-09)**: Linear.backward had
+  TWO latent bugs that PR #14/15 partially exposed:
+  1. W-order (same as PR #14 W_o): `return grad @ self.W.T` after
+     `self.W -= self.dW` — used post-update W. PR #15 fixed for 2D
+     inputs; PR #16 fixed for N-D.
+  2. N-D support: forward() accepts `(B, T, fan_in)` via broadcasting,
+     but backward assumed 2D. Hidden until a real N-D user
+     (transformer block) tried to train. Fix: flatten leading dims
+     in backward.
+  Lesson: when a module's forward is broadcasting-friendly, its
+  backward MUST mirror that via flatten/reshape. Pattern repeated
+  across 3 PRs (W_o, Linear 2D, Linear N-D) — same root cause class.
+- **PR #15 critical bug catch (2026-08-09)**: in-place SGD updates
   of weights (`W -= dW` with lr=1.0) inside `backward()` mutate the
   weight matrix BEFORE the gradient flow computes `d_pre = grad @
   W.T`. Always compute `d_pre` (and any downstream gradient that
