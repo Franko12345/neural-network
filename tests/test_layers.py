@@ -36,20 +36,27 @@ def test_linear_forward_shape() -> bool:
 
 
 def test_linear_backward_grad() -> bool:
-    """Check grad of sum(out) w.r.t. x matches finite differences."""
+    """Check grad of sum(out) w.r.t. x matches finite differences.
+
+    Re-initializes Linear per FD call so the in-place W/b mutation in
+    Linear.backward doesn't poison later samples (PR #14 lesson).
+    """
     rng = np.random.default_rng(1)
-    layer = Linear(2, 3)
-    # fix W/b so analytical and numerical match
-    layer.W = rng.standard_normal((2, 3)) * 0.1
-    layer.b = np.zeros((1, 3))
+    W = rng.standard_normal((2, 3)) * 0.1
+    b = np.zeros((1, 3))
     x = rng.standard_normal((1, 2))
 
     def loss_fn(x_in: np.ndarray) -> float:
+        layer = Linear(2, 3)
+        layer.W = W.copy()
+        layer.b = b.copy()
         return float(layer.forward(x_in).sum())
 
+    layer = Linear(2, 3)
+    layer.W = W.copy()
+    layer.b = b.copy()
     layer.forward(x)
-    grad_out = np.ones((1, 3))
-    grad_x_analytical = layer.backward(grad_out)
+    grad_x_analytical = layer.backward(np.ones((1, 3)))
     grad_x_numerical = _finite_diff_grad(loss_fn, x)
     return np.allclose(grad_x_analytical, grad_x_numerical, atol=1e-5)
 
