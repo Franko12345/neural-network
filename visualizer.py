@@ -2,8 +2,8 @@
 
 ponytail: render-only, no training logic. Caller drives training and
 calls update() each frame. v2 refactor: update() takes a metrics dict
-and a panel selector; set_panel(name) switches the right-panel mode.
-The v1 surface is preserved via update_legacy() (tiny adapter).
+plus optional nn/X/y kwargs for the v1-shim path; set_panel(name)
+switches the right-panel mode (raises on unknown).
 """
 import numpy as np
 import pygame
@@ -54,11 +54,12 @@ def _calc_y(node_idx: int, n_nodes: int, n_total: int, pos_y: int, height: int) 
 
 
 def _connection_thickness(weight: float) -> int:
+    # ponytail: |w|*2 per spec, floored at 1 so tiny weights still draw
     return max(1, min(5, int(abs(weight) * 2)))
 
 
 # v2 panels available. Ticket 09 adds gym_render / attention_heatmap /
-# attention_inspector; for now they fall back to weight_graph.
+# attention_inspector. Unknown panel names now raise (caller bug, not ours).
 KNOWN_PANELS = {"boundary", "weight_graph"}
 
 
@@ -68,23 +69,38 @@ class Visualizer:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("neural-network visualizer")
         self.big_font = pygame.font.SysFont("consolas", 18, bold=True)
-        self.panel = "boundary"  # default right-panel mode
+        self.panel = "boundary"
         self._last_nn = None  # cached for hit_test_input_node
 
     def close(self) -> None:
         pygame.quit()
 
     def set_panel(self, name: str) -> None:
-        """Switch the right-panel mode. Unknown names fall back to weight_graph."""
-        # ponytail: silent fallback over raising; viz keeps running on bad input
-        self.panel = name if name in KNOWN_PANELS else "weight_graph"
+        """Switch the right-panel mode. Raises on unknown panel (caller bug)."""
+        if name not in KNOWN_PANELS:
+            raise ValueError(
+                f"unknown panel: {name!r}; known={sorted(KNOWN_PANELS)}"
+            )
+        self.panel = name
 
-    def update(self, metrics: dict, panel: str | None = None) -> None:
-        """v2 entry point. metrics carries epoch/loss/acc/dataset/etc.
-        panel overrides the active right-panel mode for this frame."""
+    def update(
+        self,
+        metrics: dict,
+        panel: str | None = None,
+        *,
+        nn=None,
+        X: np.ndarray | None = None,
+        y_int: np.ndarray | None = None,
+    ) -> None:
+        """v2 entry point. metrics carries flat scalar fields (epoch/loss/acc
+        /dataset/etc). nn/X/y are kwargs so the metrics dict stays flat;
+        omit them for non-network panels (gym render, attention inspector).
+        """
         if panel is not None:
             self.set_panel(panel)
-        self._render(metrics)
+        if nn is not None:
+            self._last_nn = nn  # cache for hit_test_input_node
+        self._render(metrics, nn, X, y_int)
 
     def update_legacy(
         self,
@@ -96,31 +112,26 @@ class Visualizer:
         acc: float,
         dataset_name: str,
     ) -> None:
-        """v1 shim: same signature as the old update(). Builds a metrics
-        dict and delegates. Used by main.py v1 path until ticket 10 lands."""
-        self._last_nn = nn
-        metrics = {
-            "epoch": epoch,
-            "loss": loss,
-            "acc": acc,
-            "dataset": dataset_name,
-            "_nn": nn,
-            "_X": X,
-            "_y": y_int,
-        }
-        self.update(metrics, panel="boundary")
+        """v1 shim: same signature as the old update(). Builds a flat
+        metrics dict + kwargs and delegates. Used by main.py v1 path
+        until ticket 10 lands."""
+        metrics = {"epoch": epoch, "loss": loss, "acc": acc, "dataset": dataset_name}
+        self.update(metrics, panel="boundary", nn=nn, X=X, y_int=y_int)
 
     # --- internal ---------------------------------------------------------
 
-    def _render(self, metrics: dict) -> None:
-        nn = metrics.get("_nn")
+    def _render(
+        self,
+        metrics: dict,
+        nn,
+        X: np.ndarray | None,
+        y_int: np.ndarray | None,
+    ) -> None:
         self.screen.fill(BG_COLOR)
         self._draw_top_bar(metrics)
         if nn is not None:
-            X = metrics.get("_X")
-            y_int = metrics.get("_y")
             assert X is not None and y_int is not None, (
-                "metrics must carry _X and _y when _nn is set"
+                "nn given without X/y_int"
             )
             self._draw_decision_boundary(nn, X, y_int)
             self._draw_weight_graph(nn)
@@ -137,12 +148,7 @@ class Visualizer:
             parts.append(f"loss={metrics['loss']:.3f}")
         if "acc" in metrics:
             parts.append(f"acc={metrics['acc']:.2f}")
-        if "reward" in metrics:
-            parts.append(f"reward={metrics['reward']:.1f}")
-        if "tokens" in metrics:
-            parts.append(f"tokens={metrics['tokens']}")
-        if "panel" in metrics or self.panel:
-            parts.append(f"panel={self.panel}")
+        parts.append(f"panel={self.panel}")
         text = "  ".join(parts) if parts else "neural-network"
         surf = self.big_font.render(text, True, TEXT_COLOR)
         self.screen.blit(surf, (12, TOP_BAR_H // 2 - surf.get_height() // 2))
@@ -236,7 +242,7 @@ class Visualizer:
         return None
 
 
-# --- standalone demo (v1 surface preserved via update_legacy) ----------------
+# --- standalone demo --------------------------------------------------------
 
 if __name__ == "__main__":
     from datasets import xor
