@@ -25,13 +25,17 @@ class Linear:
         """grad has the shape of forward's output. Returns dL/dx.
 
         Updates W and b in-place with plain SGD (lr=1.0; caller scales).
+        Critical: compute dL/dx using W BEFORE mutating W (PR #14
+        pitfall: same bug existed in MultiHeadAttention where W_o
+        was mutated before computing d_pre).
         """
         assert self.x is not None, "backward called before forward"
         self.dW = self.x.T @ grad
         self.db = grad.sum(axis=0, keepdims=True)
-        self.W -= self.dW  # ponytail: SGD with lr=1.0; trainer multiplies
+        d_x = grad @ self.W.T  # use W before mutation
+        self.W -= self.dW
         self.b -= self.db
-        return grad @ self.W.T
+        return d_x
 
 
 class ReLU:
