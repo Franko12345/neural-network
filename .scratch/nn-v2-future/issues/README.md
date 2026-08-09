@@ -29,7 +29,7 @@ residual, multi-head attention).
 | [08](./08-visualizer-refactor-metrics-tabs.md) | Visualizer refactor: metrics dict + tabs | None | implemented |
 | [09](./09-visualizer-v2-panels.md) | Visualizer v2 panels (gym + attention) | 08, 03, 06 | implemented |
 | [10](./10-main-registry-and-v2-keys.md) | `main.py` registry + v2 keys | 09, 03, 06 | implemented |
-| [11](./11-wrap-up-v0-2-0.md) | Wrap-up: requirements + v0.2.0 | 10 | ready-for-agent |
+| [11](./11-wrap-up-v0-2-0.md) | Wrap-up: requirements + v0.2.0 | 10 | implemented |
 
 ## Frontier (parallelizable)
 
