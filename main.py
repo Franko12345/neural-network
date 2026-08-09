@@ -98,7 +98,7 @@ def main() -> int:
         Y_hat = nn.forward(X)
         acc = float((Y_hat.argmax(axis=1) == y).mean())
         loss = float(-np.mean(np.sum(Y * np.log(Y_hat + 1e-12), axis=1)))
-        viz.update(nn, X, y, epoch, loss, acc, dataset_name)
+        viz.update_legacy(nn, X, y, epoch, loss, acc, dataset_name)
         clock.tick(60)
 
     viz.close()
