@@ -25,7 +25,7 @@ residual, multi-head attention).
 | [04](./04-layernorm-residual-adamw.md) | LayerNorm + Residual + AdamW | 01 | implemented |
 | [05](./05-multi-head-attention.md) | Multi-head attention with causal mask | 01 | implemented |
 | [06](./06-transformer-block-and-model.md) | Transformer block + model stack | 04, 05 | implemented |
-| [07](./07-transformer-trainer.md) | Transformer trainer + checkpointing | 06, 04 | ready-for-agent |
+| [07](./07-transformer-trainer.md) | Transformer trainer + checkpointing | 06, 04 | implemented |
 | [08](./08-visualizer-refactor-metrics-tabs.md) | Visualizer refactor: metrics dict + tabs | None | implemented |
 | [09](./09-visualizer-v2-panels.md) | Visualizer v2 panels (gym + attention) | 08, 03, 06 | ready-for-agent |
 | [10](./10-main-registry-and-v2-keys.md) | `main.py` registry + v2 keys | 09, 03, 06 | ready-for-agent |
@@ -33,12 +33,9 @@ residual, multi-head attention).
 
 ## Frontier (parallelizable)
 
-**01, 02, 03, 04, 05, 06, 08 landed (PRs #10-#16, merged 2026-08-08/09).**
-Frontier now:
-- **07** (transformer trainer + AdamW + checkpointing) is next; needs
-  06 (done) + 04 (done). Unblocked.
-- **09** waits for 07 (needs attention heatmap panel + gym render
-  panel).
+**01-08 landed (PRs #10-#17, merged 2026-08-08/09).** Frontier now:
+- **09** (v2 visualizer panels: gym render + attention heatmap) is
+  next; needs 03 (done) + 06 (done) + 08 (done).
 - **10** waits for 09.
 - **11** waits for everything.
 

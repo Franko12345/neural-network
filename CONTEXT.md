@@ -109,18 +109,17 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 
 ## v2 ticket queue (next session)
 
-11 tickets; **7 landed** (PRs #10-#16, merged 2026-08-08/09):
-01, 08, 02, 04, 05, 03, 06. Remaining 4 tickets:
+11 tickets; **8 landed** (PRs #10-#17, merged 2026-08-08/09):
+01, 08, 02, 04, 05, 03, 06, 07. Remaining 3 tickets:
 ```
-07 ──→ 09 ─→ 10 ─→ 11
+09 ─→ 10 ─→ 11
 ```
 
-- **07** transformer trainer (needs 06+04, both done)
 - **09** v2 visualizer panels (gym render + attention heatmap)
 - **10** main.py registry + v2 keys
 - **11** wrap-up: requirements + v0.2.0
 
-All in `.scratch/nn-v2-future/issues/07-transformer-trainer.md` etc.
+All in `.scratch/nn-v2-future/issues/09-visualizer-v2-panels.md` etc.
 
 ## Conventions
 
@@ -138,6 +137,15 @@ All in `.scratch/nn-v2-future/issues/07-transformer-trainer.md` etc.
 
 ## Pitfalls (real ones)
 
+- **PR #17 critical bug catch (2026-08-09)**: DOUBLE-UPDATE in trainer.
+  `model.backward(d_logits, lr=1.0)` in-place SGD-updates Linear/
+  LayerNorm weights; then `AdamW.step()` applied a SECOND update.
+  Every weight stepped twice per iteration. Same bug class as
+  PR #15 W-order. Fix: `update=False` flag on Linear/LayerNorm/MHA/
+  Block/Transformer.backward so trainer can compute gradients
+  without mutating weights; AdamW is the sole updater. Pattern
+  recurring across PR #14/#15/#16/#17: in-place SGD step +
+  caller-managed optimizer = double-update trap.
 - **PR #16 critical bug catch (2026-08-09)**: Linear.backward had
   TWO latent bugs that PR #14/15 partially exposed:
   1. W-order (same as PR #14 W_o): `return grad @ self.W.T` after
