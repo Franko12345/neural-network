@@ -1,9 +1,4 @@
-"""Generate GIF frames by training each dataset under dummy SDL and saving
-frames to disk. Then ffmpeg joins them into a GIF.
-
-ponytail: ad-hoc script for README asset generation. Not part of the
-shipped visualizer.
-"""
+FRAMES_PER_DATASET = 120  # 120 frames at 20fps = 6s loop (was 60/3s)
 import os
 import shutil
 import subprocess
@@ -22,7 +17,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 
 DATASETS = {"xor": xor, "circle": circle, "spiral": spiral}
-FRAMES_PER_DATASET = 60
+FRAMES_PER_DATASET = 120  # 120 frames at 20fps = 6s loop (was 60/3s)
 EPOCHS_PER_FRAME = 30  # so each GIF shows meaningful learning progress
 
 
@@ -41,7 +36,7 @@ def capture_dataset(name: str, arch: list[int], out_dir: str) -> int:
         Y_hat = nn.forward(X)
         acc = float((Y_hat.argmax(axis=1) == y).mean())
         loss = float(-np.mean(np.sum(Y * np.log(Y_hat + 1e-12), axis=1)))
-        viz.update(nn, X, y, epoch, loss, acc, name)
+        viz.update_legacy(nn, X, y, epoch, loss, acc, name)
         pygame.image.save(viz.screen, f"{out_dir}/frame_{frame:03d}.png")
     viz.close()
     return FRAMES_PER_DATASET
