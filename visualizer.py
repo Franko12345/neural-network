@@ -1,7 +1,9 @@
 """Pygame visualizer: decision boundary (left) + weight graph (right).
 
 ponytail: render-only, no training logic. Caller drives training and
-calls update() each frame.
+calls update() each frame. v2 refactor: update() takes a metrics dict
+plus optional nn/X/y kwargs for the v1-shim path; set_panel(name)
+switches the right-panel mode (raises on unknown).
 """
 import numpy as np
 import pygame
@@ -18,7 +20,7 @@ PANEL_H = HEIGHT - TOP_BAR_H
 BG_COLOR = (15, 15, 20)
 BAR_COLOR = (25, 25, 32)
 TEXT_COLOR = (220, 220, 220)
-NODE_OUTLINE = (45, 50, 65)  # dark slate — pairs with bg (15,15,20) without pure black
+NODE_OUTLINE = (45, 50, 65)
 CONN_NEG = (60, 120, 255)
 CONN_POS = (255, 80, 80)
 CLASS_COLORS = [(40, 200, 180), (255, 150, 50), (220, 60, 200)]
@@ -26,12 +28,10 @@ CLASS_COLORS = [(40, 200, 180), (255, 150, 50), (220, 60, 200)]
 GRID_RES = 40
 NODE_RADIUS = 18
 NODE_OUTLINE_W = 6
-NODE_END_INSET = 0.12  # input/output layers inset this fraction from panel edge
+NODE_END_INSET = 0.12
 
 
 def _calc_x(layer_idx: int, n_layers: int, pos_x: int, width: int) -> int:
-    # Input/output pinned at panel edges (inset by NODE_END_INSET); hidden layers
-    # centered between them at equal intervals.
     inset = int(width * NODE_END_INSET)
     if n_layers <= 1:
         return pos_x + width // 2
@@ -39,20 +39,14 @@ def _calc_x(layer_idx: int, n_layers: int, pos_x: int, width: int) -> int:
         return pos_x + inset
     if layer_idx == n_layers - 1:
         return pos_x + width - inset
-    # n_hidden layers distributed across (n_hidden + 1) equal intervals
-    # between input and output, so they always sit centered.
     n_hidden = n_layers - 2
     span = width - 2 * inset
     return pos_x + inset + (layer_idx * span) // (n_hidden + 1)
 
 
 def _calc_y(node_idx: int, n_nodes: int, n_total: int, pos_y: int, height: int) -> int:
-    """Vertical layout: nodes grow from the center outward as the layer widens.
-    The tallest layer sets the box height; shorter layers stay centered."""
     if n_total <= 1 or n_nodes == 1:
         return pos_y + height // 2
-    # Spacing dictated by the tallest layer (n_total); this layer's nodes sit
-    # at the same dy as if it were the tallest, then center the column.
     dy = height // max(n_total - 1, 1)
     used = (n_nodes - 1) * dy
     top = pos_y + (height - used) // 2
@@ -60,8 +54,13 @@ def _calc_y(node_idx: int, n_nodes: int, n_total: int, pos_y: int, height: int) 
 
 
 def _connection_thickness(weight: float) -> int:
-    # ponytail: |w| * 2 per spec, floored at 1 so tiny weights still draw.
+    # ponytail: |w|*2 per spec, floored at 1 so tiny weights still draw
     return max(1, min(5, int(abs(weight) * 2)))
+
+
+# v2 panels available. Ticket 09 adds gym_render / attention_heatmap /
+# attention_inspector. Unknown panel names now raise (caller bug, not ours).
+KNOWN_PANELS = {"boundary", "weight_graph"}
 
 
 class Visualizer:
@@ -70,13 +69,42 @@ class Visualizer:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("neural-network visualizer")
         self.big_font = pygame.font.SysFont("consolas", 18, bold=True)
+        self.panel = "boundary"
+        self._last_nn = None  # cached for hit_test_input_node
 
     def close(self) -> None:
         pygame.quit()
 
+    def set_panel(self, name: str) -> None:
+        """Switch the right-panel mode. Raises on unknown panel (caller bug)."""
+        if name not in KNOWN_PANELS:
+            raise ValueError(
+                f"unknown panel: {name!r}; known={sorted(KNOWN_PANELS)}"
+            )
+        self.panel = name
+
     def update(
         self,
-        nn,  # NeuralNetwork — typed loosely to avoid circular import
+        metrics: dict,
+        panel: str | None = None,
+        *,
+        nn=None,
+        X: np.ndarray | None = None,
+        y_int: np.ndarray | None = None,
+    ) -> None:
+        """v2 entry point. metrics carries flat scalar fields (epoch/loss/acc
+        /dataset/etc). nn/X/y are kwargs so the metrics dict stays flat;
+        omit them for non-network panels (gym render, attention inspector).
+        """
+        if panel is not None:
+            self.set_panel(panel)
+        if nn is not None:
+            self._last_nn = nn  # cache for hit_test_input_node
+        self._render(metrics, nn, X, y_int)
+
+    def update_legacy(
+        self,
+        nn,
         X: np.ndarray,
         y_int: np.ndarray,
         epoch: int,
@@ -84,16 +112,44 @@ class Visualizer:
         acc: float,
         dataset_name: str,
     ) -> None:
-        self._last_nn = nn
+        """v1 shim: same signature as the old update(). Builds a flat
+        metrics dict + kwargs and delegates. Used by main.py v1 path
+        until ticket 10 lands."""
+        metrics = {"epoch": epoch, "loss": loss, "acc": acc, "dataset": dataset_name}
+        self.update(metrics, panel="boundary", nn=nn, X=X, y_int=y_int)
+
+    # --- internal ---------------------------------------------------------
+
+    def _render(
+        self,
+        metrics: dict,
+        nn,
+        X: np.ndarray | None,
+        y_int: np.ndarray | None,
+    ) -> None:
         self.screen.fill(BG_COLOR)
-        self._draw_top_bar(epoch, loss, acc, dataset_name)
-        self._draw_decision_boundary(nn, X, y_int)
-        self._draw_weight_graph(nn)
+        self._draw_top_bar(metrics)
+        if nn is not None:
+            assert X is not None and y_int is not None, (
+                "nn given without X/y_int"
+            )
+            self._draw_decision_boundary(nn, X, y_int)
+            self._draw_weight_graph(nn)
         pygame.display.flip()
 
-    def _draw_top_bar(self, epoch: int, loss: float, acc: float, name: str) -> None:
+    def _draw_top_bar(self, metrics: dict) -> None:
         pygame.draw.rect(self.screen, BAR_COLOR, (0, 0, WIDTH, TOP_BAR_H))
-        text = f"dataset={name}  epoch={epoch}  loss={loss:.3f}  acc={acc:.2f}"
+        parts = []
+        if "dataset" in metrics:
+            parts.append(f"dataset={metrics['dataset']}")
+        if "epoch" in metrics:
+            parts.append(f"epoch={metrics['epoch']}")
+        if "loss" in metrics:
+            parts.append(f"loss={metrics['loss']:.3f}")
+        if "acc" in metrics:
+            parts.append(f"acc={metrics['acc']:.2f}")
+        parts.append(f"panel={self.panel}")
+        text = "  ".join(parts) if parts else "neural-network"
         surf = self.big_font.render(text, True, TEXT_COLOR)
         self.screen.blit(surf, (12, TOP_BAR_H // 2 - surf.get_height() // 2))
 
@@ -133,7 +189,6 @@ class Visualizer:
         size_h = PANEL_H - 40
         layers: list[dict] = nn.layers
         n_layers = len(layers) + 1
-        # Tallest layer dictates the vertical box; shorter layers stay centered.
         n_total = max(nn.input_cache.shape[1], max(layer["W"].shape[1] for layer in layers))
 
         for i, layer in enumerate(layers):
@@ -148,7 +203,6 @@ class Visualizer:
                     color = CONN_POS if w > 0 else CONN_NEG
                     thick = _connection_thickness(w)
                     pygame.draw.line(self.screen, color, (x_in, y_in), (x_out, y_out), thick)
-                    # AA blend on top so the edges aren't stair-stepped.
                     pygame.draw.aaline(self.screen, color, (x_in, y_in), (x_out, y_out))
 
         for i in range(n_layers):
@@ -162,23 +216,13 @@ class Visualizer:
                 y = _calc_y(j, n_nodes, n_total, pos_y, size_h)
                 gray = int(np.clip(values[j] * 255, 0, 255))
                 fill = (gray, gray, gray)
-                # Outline first (behind fill), full radius, so the fill covers
-                # the inner half of the border and only the outer half shows.
                 pygame.draw.circle(self.screen, NODE_OUTLINE, (x, y), NODE_RADIUS, NODE_OUTLINE_W)
                 inner = NODE_RADIUS - NODE_OUTLINE_W // 2
                 pygame.gfxdraw.filled_circle(self.screen, x, y, inner, fill)
                 pygame.gfxdraw.aacircle(self.screen, x, y, inner, fill)
-                # Outer AA halo on the border.
                 pygame.gfxdraw.aacircle(self.screen, x, y, NODE_RADIUS, NODE_OUTLINE)
 
     def hit_test_input_node(self, mx: int, my: int) -> int | None:
-        """Return the index of the input node clicked at (mx, my), or None.
-
-        Uses the same layout math as _draw_weight_graph so clicks land on
-        the visible circles even when the input layer has fewer nodes than
-        the tallest layer (those nodes stay centered)."""
-        # Need a network in scope to know n_nodes for the input layer.
-        # Caller must have called update() at least once.
         if not hasattr(self, "_last_nn") or self._last_nn is None:
             return None
         nn = self._last_nn
@@ -198,7 +242,7 @@ class Visualizer:
         return None
 
 
-# --- standalone demo: run on hardcoded XOR ---------------------------------
+# --- standalone demo --------------------------------------------------------
 
 if __name__ == "__main__":
     from datasets import xor
@@ -218,7 +262,7 @@ if __name__ == "__main__":
             epoch += 10
             losses = nn.fit(X, Y, epochs=10, lr=0.05)
             acc = float((nn.forward(X).argmax(axis=1) == y).mean())
-            viz.update(nn, X, y, epoch, losses[-1], acc, "xor")
+            viz.update_legacy(nn, X, y, epoch, losses[-1], acc, "xor")
             clock.tick(60)
     finally:
         viz.close()

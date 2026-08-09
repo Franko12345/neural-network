@@ -82,6 +82,8 @@ def main() -> int:
                     lr = max(0.001, lr / 1.5)
                 elif event.key == pygame.K_f:
                     epochs_per_frame = 200 if epochs_per_frame < 100 else 10
+                elif event.key == pygame.K_TAB:
+                    viz.set_panel("weight_graph" if viz.panel == "boundary" else "boundary")
                 elif event.key in KEY_TO_DATASET:
                     swap_dataset(KEY_TO_DATASET[event.key])
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -98,7 +100,7 @@ def main() -> int:
         Y_hat = nn.forward(X)
         acc = float((Y_hat.argmax(axis=1) == y).mean())
         loss = float(-np.mean(np.sum(Y * np.log(Y_hat + 1e-12), axis=1)))
-        viz.update(nn, X, y, epoch, loss, acc, dataset_name)
+        viz.update_legacy(nn, X, y, epoch, loss, acc, dataset_name)
         clock.tick(60)
 
     viz.close()
