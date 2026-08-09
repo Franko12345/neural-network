@@ -74,8 +74,10 @@ neural-network/
 **v1 shipped** (`v0.1.0` tag, GitHub release published). Headless tests
 pass in ~3.6s. Visualizer runs at 60fps on a desktop with display.
 
-**v2 ready-to-build.** Spec reviewed structurally (10 changes for
-v1-compat); 11 tickets published. v1 stays frozen throughout v2.
+**v2 shipped** (`v0.2.0` tag). 11 tickets closed in 4 rounds of
+parallel worktrees. v1 stayed frozen throughout v2 (verified via
+`git diff main -- nn.py datasets.py tests/test_nn.py` = 0 lines per
+merge).
 
 ## How to run
 
@@ -93,7 +95,7 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 | Version | Status | Spec | Scope |
 |---|---|---|---|
 | **v1 — nn-visualizer** | `implemented` (v0.1.0 released) | `.scratch/nn-visualizer/README.md` | Toy datasets (XOR/circle/spiral) + backprop + pygame viz. ~600 LOC shipped. |
-| **v2 — nn-v2-future** | `ready-for-agent` | `.scratch/nn-v2-future/README.md` | MountainCar-v0 + REINFORCE + decoder-only transformer from scratch. Adds gymnasium as only new dep. ~2200 LOC estimated. |
+| **v2 — nn-v2-future** | `implemented` (v0.2.0) | `.scratch/nn-v2-future/README.md` | MountainCar-v0 + REINFORCE + decoder-only transformer from scratch. Adds gymnasium as only new dep. ~2200 LOC estimated. |
 | **v3 — diffusion** | `not specced` | — | 3Blue1Brown cap. 10. Spec when v2 ships. |
 
 ## Versions must sequence
@@ -107,17 +109,13 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
   mode preserved via adapter in v1's `__main__`).
 - **v3** depends on v2's transformer modules + interpretability tools.
 
-## v2 ticket queue (next session)
+## v2 ticket queue (final)
 
-11 tickets; **10 landed** (PRs #10-#19, merged 2026-08-08/09):
-01, 08, 02, 04, 05, 03, 06, 07, 09, 10. Remaining 1 ticket:
-```
-11
-```
+11 tickets; **all 11 shipped** (PRs #10-#20, merged 2026-08-08/09):
+01, 08, 02, 04, 05, 03, 06, 07, 09, 10, 11. v0.2.0 tag.
 
-- **11** wrap-up: requirements + v0.2.0
-
-All in `.scratch/nn-v2-future/issues/11-wrap-up-v0-2-0.md`.
+Final commit on main tagged `v0.2.0` (this round). See release notes
+for ticket-by-ticket summary.
 
 ## Conventions
 

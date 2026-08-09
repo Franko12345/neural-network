@@ -1,5 +1,5 @@
 ---
-status: ready-for-agent
+status: implemented
 ---
 
 # NN v2 — MountainCar-v0 + Transformer (revisão estrutural)
