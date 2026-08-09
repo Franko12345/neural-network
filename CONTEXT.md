@@ -109,17 +109,16 @@ See `README.md` for key bindings, CLI options, and visual demo GIFs.
 
 ## v2 ticket queue (next session)
 
-11 tickets; **8 landed** (PRs #10-#17, merged 2026-08-08/09):
-01, 08, 02, 04, 05, 03, 06, 07. Remaining 3 tickets:
+11 tickets; **9 landed** (PRs #10-#18, merged 2026-08-08/09):
+01, 08, 02, 04, 05, 03, 06, 07, 09. Remaining 2 tickets:
 ```
-09 ─→ 10 ─→ 11
+10 ─→ 11
 ```
 
-- **09** v2 visualizer panels (gym render + attention heatmap)
 - **10** main.py registry + v2 keys
 - **11** wrap-up: requirements + v0.2.0
 
-All in `.scratch/nn-v2-future/issues/09-visualizer-v2-panels.md` etc.
+All in `.scratch/nn-v2-future/issues/10-main-registry-and-v2-keys.md` etc.
 
 ## Conventions
 
