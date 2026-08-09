@@ -54,7 +54,8 @@ def train(policy_layers: list, batch, lr: float = 0.01, gamma: float = 0.99):
     logits = lin2.forward(h)
     probs = softmax.forward(logits)
 
-    # Fused softmax+CE: dL/d_logits = (probs - one_hot(a)) * advantage / T
+    # REINFORCE log-prob × advantage gradient: dL/d_logits = (probs - one_hot(a)) * adv / T
+    # (chain rule through softmax+log_pi; equivalent to fused softmax+CE for CE loss)
     N = T
     one_hot = np.zeros_like(probs)
     one_hot[np.arange(T), actions] = 1.0

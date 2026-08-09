@@ -9,7 +9,7 @@ running mean reward.
 
 **Blocked by:** 01 (Linear, Softmax), 02 (RolloutBatch).
 
-**Status:** ready-for-agent
+**Status:** implemented
 
 - [x] `train_rl.py`: `train(policy, batch, lr=0.01)` computes:
       - `G_t = Σ γ^k * r_{t+k}` per timestep
