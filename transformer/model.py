@@ -50,18 +50,21 @@ class Transformer:
         logits = self.lm_head.forward(x)  # (B, T, vocab)
         return logits
 
-    def backward(self, grad_logits: np.ndarray, lr: float = 1.0) -> None:
-        """grad_logits: (B, T, vocab) dL/d(logits). Updates all params in place."""
+    def backward(self, grad_logits: np.ndarray, lr: float = 1.0,
+                update: bool = True) -> None:
+        """grad_logits: (B, T, vocab) dL/d(logits). Updates all params in place
+        UNLESS update=False (PR #17 trainer uses AdamW and must suppress
+        the in-place SGD to avoid double-updating)."""
         # Scale upstream gradient by lr so Linear in-place lr=1.0 applies
         # the requested step size.
         grad_logits = grad_logits * lr
         # lm_head backward
-        grad = self.lm_head.backward(grad_logits)
+        grad = self.lm_head.backward(grad_logits, update=update)
         # final_ln backward
-        grad = self.final_ln.backward(grad)
+        grad = self.final_ln.backward(grad, update=update)
         # blocks backward (reverse order)
         for block in reversed(self.blocks):
-            grad = block.backward(grad)
+            grad = block.backward(grad, update=update)
         # token_emb + pos_enc have no params; gradients on x are discarded.
 
     def sample(

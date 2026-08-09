@@ -21,10 +21,12 @@ class Linear:
         self.x = x
         return x @ self.W + self.b
 
-    def backward(self, grad: np.ndarray) -> np.ndarray:
+    def backward(self, grad: np.ndarray, update: bool = True) -> np.ndarray:
         """grad has the shape of forward's output. Returns dL/dx.
 
-        Updates W and b in-place with plain SGD (lr=1.0; caller scales).
+        Updates W and b in-place with plain SGD (lr=1.0; caller scales)
+        UNLESS update=False (PR #17 trainer uses AdamW and must suppress
+        the in-place SGD to avoid double-updating).
         Critical: compute dL/dx using W BEFORE mutating W (PR #14/15
         pitfall: same bug existed in MultiHeadAttention and in Linear).
 
@@ -37,8 +39,9 @@ class Linear:
         self.dW = x_flat.T @ grad_flat
         self.db = grad_flat.sum(axis=0, keepdims=True)
         d_x_flat = grad_flat @ self.W.T  # use W before mutation
-        self.W -= self.dW
-        self.b -= self.db
+        if update:
+            self.W -= self.dW
+            self.b -= self.db
         return d_x_flat.reshape(self.x.shape)
 
 
@@ -123,26 +126,25 @@ class LayerNorm:
         self.x_hat = (x - self.mu) / np.sqrt(self.var + self.eps)
         return self.gamma * self.x_hat + self.beta
 
-    def backward(self, grad: np.ndarray) -> np.ndarray:
+    def backward(self, grad: np.ndarray, update: bool = True) -> np.ndarray:
         # Standard LN backward. d_model = D for shorthand.
+        # update=False suppresses the in-place SGD on gamma/beta
+        # (PR #17 trainer uses AdamW; double-update would corrupt).
         x_hat = self.x_hat
         D = x_hat.shape[-1]
-        # d/dx_hat
+        axes = tuple(range(grad.ndim - 1))
         dx_hat = grad * self.gamma
-        # d/dvar
-        dvar = (dx_hat * (self.x - self.mu) * -0.5 *
-                (self.var + self.eps) ** -1.5).sum(axis=-1, keepdims=True)
-        # d/dmu
-        dmu = (dx_hat * -1.0 / np.sqrt(self.var + self.eps)).sum(
+        centered = self.x - self.mu
+        std = np.sqrt(self.var + self.eps)
+        dvar = (dx_hat * centered * -0.5 / (std ** 3)).sum(
             axis=-1, keepdims=True
-        ) + dvar * ((self.x - self.mu) * -2.0).mean(axis=-1, keepdims=True)
-        # d/dx
-        dx = dx_hat / np.sqrt(self.var + self.eps) + dvar * 2.0 * (
-            self.x - self.mu
-        ) / D + dmu / D
-        # gradients on gamma/beta; in-place SGD update like Linear
-        self.d_gamma = (grad * x_hat).sum(axis=tuple(range(grad.ndim - 1)))
-        self.d_beta = grad.sum(axis=tuple(range(grad.ndim - 1)))
-        self.gamma -= self.d_gamma
-        self.beta -= self.d_beta
+        )
+        dmu = (-dx_hat / std).sum(axis=-1, keepdims=True)
+        dx = dx_hat / std + dvar * 2.0 * centered / D + dmu / D
+        self.d_gamma = (grad * x_hat).sum(axis=axes)
+        self.d_beta = grad.sum(axis=axes)
+        if update:
+            self.gamma -= self.d_gamma
+            self.beta -= self.d_beta
+        return dx
         return dx
