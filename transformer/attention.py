@@ -1,0 +1,117 @@
+"""Multi-head self-attention with causal mask.
+
+ponytail: one class. split/merge heads are private methods used by both
+forward and backward (justified). The causal mask is built inline at
+forward time (one site of use).
+
+ponytail: W_q/k/v/o updated in-place with lr=1.0 (caller scales), same
+convention as layers.Linear. forward caches out_pre_proj so backward
+doesn't recompute it (CONTEXT pitfall from PR #10).
+"""
+import numpy as np
+
+
+class MultiHeadAttention:
+    """Self-attention with multiple heads. Forward input: (B, T, d_model)."""
+
+    def __init__(self, d_model: int, n_heads: int, seed: int = 42):
+        assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads
+        rng = np.random.default_rng(seed)
+        # Xavier-scale init (matches layers.Linear convention)
+        scale = np.sqrt(2.0 / (d_model + d_model))
+        self.W_q = rng.standard_normal((d_model, d_model)) * scale
+        self.W_k = rng.standard_normal((d_model, d_model)) * scale
+        self.W_v = rng.standard_normal((d_model, d_model)) * scale
+        self.W_o = rng.standard_normal((d_model, d_model)) * scale
+        # Cache for backward
+        self.x = None
+        self.Q = None
+        self.K = None
+        self.V = None
+        self.attn_weights = None  # (n_heads, B, T, T) — exposed for ticket 09
+        self.out_pre_proj = None  # merged heads before W_o (PR #10 pitfall fix)
+
+    def _split_heads(self, x: np.ndarray) -> np.ndarray:
+        """(B, T, d_model) -> (n_heads, B, T, d_k)."""
+        B, T, _ = x.shape
+        return x.reshape(B, T, self.n_heads, self.d_k).transpose(2, 0, 1, 3)
+
+    def _merge_heads(self, x: np.ndarray) -> np.ndarray:
+        """(n_heads, B, T, d_k) -> (B, T, d_model)."""
+        B, T, _, _ = (x.shape[1], x.shape[2], self.n_heads, self.d_k)
+        return x.transpose(1, 2, 0, 3).reshape(B, T, self.d_model)
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """x: (B, T, d_model). returns (B, T, d_model)."""
+        self.x = x
+        B, T, _ = x.shape
+        # Project Q/K/V: (B, T, d_model) @ W -> (B, T, d_model)
+        Q = x @ self.W_q
+        K = x @ self.W_k
+        V = x @ self.W_v
+        # Split heads
+        Qh = self._split_heads(Q)
+        Kh = self._split_heads(K)
+        Vh = self._split_heads(V)
+        # Scores: (H, B, T, d_k) @ (H, B, d_k, T) -> (H, B, T, T)
+        scores = Qh @ Kh.transpose(0, 1, 3, 2) / np.sqrt(self.d_k)
+        # Causal mask (inline; one use site)
+        mask = np.triu(np.full((T, T), -np.inf), k=1)
+        scores = scores + mask  # broadcasts over heads and batch
+        # Softmax along last axis (max-shift for stability)
+        shift = scores - scores.max(axis=-1, keepdims=True)
+        e = np.exp(shift)
+        aw = e / e.sum(axis=-1, keepdims=True)  # (H, B, T, T)
+        # Attention output: (H, B, T, d_k)
+        out_h = aw @ Vh
+        # Merge heads: (B, T, d_model). Cache for backward.
+        self.out_pre_proj = self._merge_heads(out_h)
+        # Output projection: (B, T, d_model)
+        out = self.out_pre_proj @ self.W_o
+
+        self.Q, self.K, self.V = Qh, Kh, Vh
+        self.attn_weights = aw
+        return out
+
+    def backward(self, grad: np.ndarray) -> np.ndarray:
+        """grad: (B, T, d_model) — dL/d(out). Returns dL/d(x), updates W in place."""
+        B = grad.shape[0]
+        # dL/d(out_pre_proj): backprop through W_o — compute BEFORE
+        # mutating W_o in the next line (PR #14 review bug: was using
+        # already-updated W_o for the d_pre computation).
+        d_pre = grad @ self.W_o.T  # (B, T, d_model)
+        # dL/d(W_o) = out_pre_proj.T @ grad  (use cached, don't recompute)
+        self.W_o -= self.out_pre_proj.reshape(-1, self.d_model).T @ grad.reshape(-1, self.d_model)
+        # Split back to heads
+        dh = self._split_heads(d_pre)  # (H, B, T, d_k)
+        # Backprop through attention: out_h = aw @ V
+        d_aw = dh @ self.V.transpose(0, 1, 3, 2)
+        d_Vh = self.attn_weights.transpose(0, 1, 3, 2) @ dh
+
+        # Softmax backward: JVP form (masked positions already produce aw=0).
+        d_scores = self.attn_weights * (d_aw - (d_aw * self.attn_weights).sum(axis=-1, keepdims=True))
+        # Scale by 1/sqrt(d_k)
+        d_scores = d_scores / np.sqrt(self.d_k)
+
+        # dL/d(Qh) = d_scores @ Kh
+        d_Qh = d_scores @ self.K
+        d_Kh = d_scores.transpose(0, 1, 3, 2) @ self.Q
+
+        # Merge heads back to (B, T, d_model)
+        dQ = self._merge_heads(d_Qh)
+        dK = self._merge_heads(d_Kh)
+        dV = self._merge_heads(d_Vh)
+
+        # dL/d(x) = dQ @ W_q.T + dK @ W_k.T + dV @ W_v.T
+        d_x = dQ @ self.W_q.T + dK @ self.W_k.T + dV @ self.W_v.T
+
+        # Parameter gradients (SGD with lr=1.0 in-place)
+        x_flat = self.x.reshape(-1, self.d_model)
+        self.W_q -= x_flat.T @ dQ.reshape(-1, self.d_model)
+        self.W_k -= x_flat.T @ dK.reshape(-1, self.d_model)
+        self.W_v -= x_flat.T @ dV.reshape(-1, self.d_model)
+
+        return d_x
