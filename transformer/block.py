@@ -39,17 +39,17 @@ class Block:
         )
         return x
 
-    def backward(self, grad: np.ndarray) -> np.ndarray:
+    def backward(self, grad: np.ndarray, update: bool = True) -> np.ndarray:
         # Residual #2: x = x + FFN(LN2(x)). grad_out splits into identity
         # path (+grad) and FFN path.
         d_lin2_out = grad
-        d_lin2_in = self.ffn_lin2.backward(d_lin2_out)
+        d_lin2_in = self.ffn_lin2.backward(d_lin2_out, update=update)
         d_relu_in = self.relu.backward(d_lin2_in)
-        d_lin1_in = self.ffn_lin1.backward(d_relu_in)
-        d_ln2_in = self.ln2.backward(d_lin1_in)
+        d_lin1_in = self.ffn_lin1.backward(d_relu_in, update=update)
+        d_ln2_in = self.ln2.backward(d_lin1_in, update=update)
         grad = grad + d_ln2_in  # residual split
         # Residual #1: x = x + MHA(LN1(x)).
         d_mha_out = grad
-        d_mha_in = self.mha.backward(d_mha_out)
-        d_ln1_in = self.ln1.backward(d_mha_in)
+        d_mha_in = self.mha.backward(d_mha_out, update=update)
+        d_ln1_in = self.ln1.backward(d_mha_in, update=update)
         return grad + d_ln1_in  # residual split

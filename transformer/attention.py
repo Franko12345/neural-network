@@ -76,7 +76,7 @@ class MultiHeadAttention:
         self.attn_weights = aw
         return out
 
-    def backward(self, grad: np.ndarray) -> np.ndarray:
+    def backward(self, grad: np.ndarray, update: bool = True) -> np.ndarray:
         """grad: (B, T, d_model) — dL/d(out). Returns dL/d(x), updates W in place."""
         B = grad.shape[0]
         # dL/d(out_pre_proj): backprop through W_o — compute BEFORE
@@ -84,7 +84,8 @@ class MultiHeadAttention:
         # already-updated W_o for the d_pre computation).
         d_pre = grad @ self.W_o.T  # (B, T, d_model)
         # dL/d(W_o) = out_pre_proj.T @ grad  (use cached, don't recompute)
-        self.W_o -= self.out_pre_proj.reshape(-1, self.d_model).T @ grad.reshape(-1, self.d_model)
+        if update:
+            self.W_o -= self.out_pre_proj.reshape(-1, self.d_model).T @ grad.reshape(-1, self.d_model)
         # Split back to heads
         dh = self._split_heads(d_pre)  # (H, B, T, d_k)
         # Backprop through attention: out_h = aw @ V
@@ -110,8 +111,9 @@ class MultiHeadAttention:
 
         # Parameter gradients (SGD with lr=1.0 in-place)
         x_flat = self.x.reshape(-1, self.d_model)
-        self.W_q -= x_flat.T @ dQ.reshape(-1, self.d_model)
-        self.W_k -= x_flat.T @ dK.reshape(-1, self.d_model)
-        self.W_v -= x_flat.T @ dV.reshape(-1, self.d_model)
+        if update:
+            self.W_q -= x_flat.T @ dQ.reshape(-1, self.d_model)
+            self.W_k -= x_flat.T @ dK.reshape(-1, self.d_model)
+            self.W_v -= x_flat.T @ dV.reshape(-1, self.d_model)
 
         return d_x

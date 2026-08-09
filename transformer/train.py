@@ -1,7 +1,12 @@
 """Transformer trainer with AdamW + checkpointing.
 
-ponytail: trainer state = (model + optim + step_count + last_loss).
-No globals; same Trainer instance can be saved/reloaded via npz.
+ponytail: trainer state = (model + optim + step_count). No globals;
+same Trainer instance can be saved/reloaded via npz.
+
+Critical: model.backward is called with update=False so Linear/
+LayerNorm's in-place SGD doesn't fire alongside AdamW (otherwise
+every weight is stepped twice per iteration — PR #17 review catch,
+same bug class as PR #15 W-order).
 
 Checkpoint auto-load: if `checkpoint.npz` exists in CWD when Trainer
 is constructed, weights load automatically (per ticket 07 AC).
@@ -109,15 +114,14 @@ class Trainer:
         return loss
 
     def train(self, n_steps: int, batch_size: int = 4, seq_len: Optional[int] = None,
-              log_every: int = 0, save_every: int = 0) -> list:
-        """Run n_steps training steps. Returns list of losses (every step)."""
+              save_every: int = 100) -> list:
+        """Run n_steps training steps. Saves checkpoint every save_every
+        steps (default 100 per spec). Returns list of losses (every step)."""
         losses = []
         for _ in range(n_steps):
             loss = self.step(batch_size=batch_size, seq_len=seq_len)
             losses.append(loss)
-            if log_every and (self._step % log_every == 0):
-                print(f"step {self._step:4d}  loss={loss:.4f}")
-            if save_every and (self._step % save_every == 0):
+            if self._step % save_every == 0:
                 self.save(self.checkpoint_path)
         return losses
 
